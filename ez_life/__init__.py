@@ -11,3 +11,4 @@
 #================================================================
 
 from .param2attr import Param2attr
+from .jt_property import JTProperty

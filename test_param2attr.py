@@ -1,16 +1,16 @@
 
 #================================================================
 #
-#   File name   : test_jt_misc..py
+#   File name   : test_param2attr.py
 #   Author      : Josiah Tan
 #   Created date: 28/11/2020
-#   Description : testing the module for miscalleneous stuff
+#   Description : testing param2attr module from ez_life
 #
 #================================================================
 
 #================================================================
 
-from jt_misc import *
+from ez_life import Param2attr
 
 if __name__ == "__main__":
 	class Foo:
