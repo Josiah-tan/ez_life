@@ -18,28 +18,23 @@ class EzProperty(property):
     """
     return super().setter(self.setter_preprocess(_func))
     
-    
 import functools
 class JTProperty:
   def __init__(self, setter = False):
     self.setter = setter
   def __call__(self, _func):
-    self._prop = None
+    public_name = _func.__name__
+    protected_name = f"_{public_name}"
+    
     @EzProperty
     @functools.wraps(_func)
     def wrapper(obj):
-      # case where the .setter is not used
-      if not(self.setter):
-        if self._prop is None:
-          self._prop = _func(obj)
-        return self._prop
-      # case where .setter is used
-      else:
+      if protected_name not in dir(obj):
         # if self._name is not available atm
-        if f"_{_func.__name__}" not in dir(obj):
+        if (not(self.setter)):
+          setattr(obj, protected_name, _func(obj)) 
+        else:
           # call setter method with the return value of the property function this effectively sets obj._name
-          setattr(obj, _func.__name__, _func(obj)) 
-        # get the obj._name variable
-        self._prop = getattr(obj, f"_{_func.__name__}")
-        return self._prop
+          setattr(obj, public_name, _func(obj)) 
+      return getattr(obj, protected_name)
     return wrapper
