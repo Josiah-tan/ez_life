@@ -29,8 +29,8 @@ class JTProperty:
     @EzProperty
     @functools.wraps(_func)
     def wrapper(obj):
-      if protected_name not in dir(obj):
-        # if self._name is not available atm
+      # if self._name is not available atm or self._name is None
+      if protected_name not in dir(obj) or getattr(obj, protected_name) is None:
         if (not(self.setter)):
           setattr(obj, protected_name, _func(obj)) 
         else:
