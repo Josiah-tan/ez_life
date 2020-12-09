@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# <a href="https://colab.research.google.com/github/Josiah-tan/ez_life/blob/main/param2attr.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
+# <a href="https://colab.research.google.com/github/Josiah-tan/ez_life/blob/main/ez_life/param2attr.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
 
 # # Implementation 
 # - Code below implements the desired features for the param2attr idea to make code more concise
 
-# In[4]:
+# In[15]:
 
 
 import inspect
@@ -50,64 +50,11 @@ class Param2attr:
     return wrapper
 
 
-# In[7]:
-
-
-class Foo:
-  def __init__(self, arg1, arg2, *args, kwarg1 = 'kwg1', default1 = 'optkwg1', **kwargs):
-    self.arg1 = arg1
-    self.arg2 = arg2
-    [setattr(self, str(key), key) for key in args]
-    self.kwarg1 = kwarg1
-    self.default1 = default1
-    [setattr(self, key, val) for key, val in kwargs.items()]
-
-
-# In[8]:
-
-
-foo = Foo(1, 'ag2', 'ag3', 4, kwarg1 = 'kwargv1', kwarg2 = 'kwargv2')
-print(dir(foo))
-print(foo.arg1)
-print(foo.arg2)
-print(foo.ag3)
-print(getattr(foo, '4')) # can't get attribute 4 via foo.4, gives synthax error
-print(type(getattr(foo, '4')))
-print(foo.kwarg1)
-print(foo.kwarg2)
-print(foo.default1)
-
-
-# In[9]:
-
-
-class Foo:
-  @Param2attr(exclude = None)
-  def __init__(self, arg1, arg2, *args, kwarg1 = 'kwg1', default1 = 'optkwg1', **kwargs):
-    pass
-
-
-# In[10]:
-
-
-foo = Foo(1, 'ag2', 'ag3', 4, kwarg1 = 'kwargv1', kwarg2 = 'kwargv2')
-print(dir(foo))
-print(foo.arg1)
-print(foo.arg2)
-print(foo.ag3)
-print(getattr(foo, '4')) # can't get attribute 4 via foo.4, gives synthax error
-print(type(getattr(foo, '4')))
-print(foo.kwarg1)
-print(foo.kwarg2)
-print(foo.default1)
-
-
 # # Param2attr
-# - The objective of this class decorator is to automate creation of class attributes from kwargs passed into an \_\_init\_\_ method 
-#   - (note: this does not work for args)
+# - The objective of this class decorator is to automate creation of class attributes from arguments passed into an \_\_init\_\_ method 
 # - Say we have a class that looks like this:
 
-# In[ ]:
+# In[16]:
 
 
 class Foo:
@@ -120,27 +67,31 @@ class Foo:
 
 # - We can instead create a class that looks like this, using a property decorator to perform the param to attribute assignments
 
-# In[ ]:
+# In[17]:
 
 
 class Foo:
   @Param2attr(exclude=None)
   def __init__(self, param1 = None, param2 = None, param3 = None):
-    print("hello")
+    # this good, allows u to write other code here during initialization
+    pass
 
 
-# In[ ]:
+# In[18]:
 
 
-foo = Foo(param1 = "john", param2 = "hog", param3 = "sam")
-dir(foo)[-4:]
+if __name__ == '__main__':
+  foo = Foo(param1 = "john", param2 = "hog", param3 = "sam")
+  assert foo.param1 == "john"
+  assert foo.param2 == "hog"
+  assert foo.param3 == "sam"
 
 
 # # Exclude
 # - The optional exclude parameter excludes any parameters in creating attributes for the class
 #   - You can specify this as a list
 
-# In[ ]:
+# In[19]:
 
 
 class Foo:
@@ -155,20 +106,25 @@ class Foo:
     pass
 
 
-# In[ ]:
+# In[20]:
 
 
-foo = Foo(param1 = "john", param2 = "hog", param3 = "sam")
-dir(foo)[-3:]
+if __name__ == '__main__':
+  foo = Foo("john", "hog", "sam")
+  foo_dir = dir(foo)
+  assert foo.param3 == "sam"
+  assert 'param1' not in foo_dir
+  assert 'param2' not in foo_dir
 
 
 # - You can also specify the exclude param as a string
 
-# In[ ]:
+# In[21]:
 
 
 class Foo:
   def __init__(self, param1, param2, param3):
+    self.param2 = param2
     self.param3 = param3
 
 # is the same as
@@ -179,20 +135,78 @@ class Foo:
     pass
 
 
-# In[ ]:
+# In[22]:
 
 
-foo = Foo(param1 = "john", param2 = "hog", param3 = "sam")
-dir(foo)[-3:]
+if __name__ == '__main__':
+  foo = Foo("john", "hog", "sam")
+  foo_dir = dir(foo)
+  assert foo.param2 == "hog"
+  assert foo.param3 == "sam"
+  assert 'param1' not in foo_dir
 
 
-# In[ ]:
+# # The General Case
+# - The code below exhibits how @Param2attr can be used in general scenarios
+#   - First we will show the traditional, hardcoded implementation
+
+# In[23]:
 
 
+class Foo:
+  def __init__(self, arg1, arg2, *args, kwarg1 = 'kwg1', default1 = 'optkwg1', **kwargs):
+    self.arg1 = arg1
+    self.arg2 = arg2
+    [setattr(self, str(key), key) for key in args]
+    self.kwarg1 = kwarg1
+    self.default1 = default1
+    [setattr(self, key, val) for key, val in kwargs.items()]
 
 
+# In[24]:
 
-# In[ ]:
+
+if __name__ == '__main__':
+  foo = Foo(1, 'ag2', 'ag3', 4, kwarg1 = 'kwargv1', kwarg2 = 'kwargv2')
+  foo_dir = dir(foo)
+  arg1 = foo.arg1
+  arg2 = foo.arg2
+  ag3 = foo.ag3
+  foo_4 = getattr(foo, '4') # can't get attribute 4 via foo.4, cause this gives synthax error
+  tp_foo_4 = type(getattr(foo, '4'))
+  kwarg1 = foo.kwarg1
+  kwarg2 = foo.kwarg2
+  default1 = foo.default1
+
+
+# - The code below does the same thing, but is simplified via the @Param2attr decorator
+
+# In[25]:
+
+
+class Foo:
+  @Param2attr(exclude = None)
+  def __init__(self, arg1, arg2, *args, kwarg1 = 'kwg1', default1 = 'optkwg1', **kwargs):
+    pass
+
+
+# In[26]:
+
+
+if __name__=='__main__':
+  foo = Foo(1, 'ag2', 'ag3', 4, kwarg1 = 'kwargv1', kwarg2 = 'kwargv2')
+  assert foo_dir == dir(foo)
+  assert arg1 == foo.arg1
+  assert arg2 == foo.arg2
+  assert ag3 == foo.ag3
+  assert foo_4 == getattr(foo, '4') # can't get attribute 4 via foo.4, gives synthax error
+  assert tp_foo_4 == type(getattr(foo, '4'))
+  assert kwarg1 == foo.kwarg1
+  assert kwarg2 == foo.kwarg2
+  assert default1 == foo.default1
+
+
+# In[26]:
 
 
 
