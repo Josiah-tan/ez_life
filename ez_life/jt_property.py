@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# <a href="https://colab.research.google.com/github/Josiah-tan/ez_life/blob/main/jt_property.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
+# <a href="https://colab.research.google.com/github/Josiah-tan/ez_life/blob/main/ez_life/jt_property.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
 
 # # Implementation JTProperty
 #   - Uses EzProperty class which inherits from property
 #     - Currently EzProperty changes the setter function such that the return value is the value set by the setter
 
-# In[1]:
+# In[11]:
 
 
 class EzProperty(property):
@@ -29,7 +29,7 @@ class EzProperty(property):
     return super().setter(self.setter_preprocess(_func))
 
 
-# In[2]:
+# In[12]:
 
 
 import functools
@@ -57,7 +57,7 @@ class JTProperty:
 # # Basic Property Demo
 # - prop3 is dependent upon the values of prop2 and prop 1 as shown below
 
-# In[3]:
+# In[13]:
 
 
 class PropDemo:
@@ -93,16 +93,17 @@ class PropDemo:
   
 
 
-# In[4]:
+# In[14]:
 
 
-prop_dem = PropDemo()
-print(prop_dem.prop3)
+if __name__ == '__main__':
+  prop_dem = PropDemo()
+  #print(prop_dem.prop3)
 
 
 # - The @JTProperty decorator uses less lines of code then the @property decorator, but achieves the same result
 
-# In[5]:
+# In[15]:
 
 
 class JTPropDemo:
@@ -123,17 +124,18 @@ class JTPropDemo:
   
 
 
-# In[6]:
+# In[16]:
 
 
-prop_dem = JTPropDemo()
-print(prop_dem.prop3)
+if __name__ == '__main__':
+  a_prop_dem = JTPropDemo()
+  assert a_prop_dem.prop3 == prop_dem.prop3
 
 
 # # Setter methods
 # - Consider a class that uses getter and setter methods as shown below:
 
-# In[7]:
+# In[17]:
 
 
 class SetAndGet:
@@ -157,26 +159,35 @@ class SetAndGet:
 
 # - In the test below, contextlib silences the ValueError that occurs with setting the radius to -5
 
-# In[8]:
+# In[18]:
 
 
-import contextlib
-setandget = SetAndGet()
-print(setandget.radius)
-setandget.radius = 5
-print(setandget.radius)
-setandget.radius = 3
-print(setandget.radius)
-with contextlib.suppress(ValueError):
-  setandget.radius = -5
-print(setandget.radius)
-# 1 5 3 3
+if __name__ == '__main__':
+  import contextlib
+  setandget = SetAndGet()
+  #print(setandget.radius)
+  rad1 = setandget.radius
+
+  setandget.radius = 5
+  #print(setandget.radius)
+  rad2 = setandget.radius
+
+  setandget.radius = 3
+  #print(setandget.radius)
+  rad3 = setandget.radius
+
+  with contextlib.suppress(ValueError):
+    setandget.radius = -5
+  #print(setandget.radius)
+  rad4 = setandget.radius
+
+  # 1 5 3 3
 
 
 # - JTProperty() and .setter reduce abstraction involving usage of hidden "protected variables"
 #   - setter = True should be set when @radius.setter is used
 
-# In[9]:
+# In[19]:
 
 
 class JTSetAndGet:
@@ -193,32 +204,45 @@ class JTSetAndGet:
     return r
 
 
-# In[10]:
+# In[20]:
 
 
-import contextlib
+if __name__ == '__main__':
+  import contextlib
+  setandget = SetAndGet()
+  #print(setandget.radius)
+  alt_rad1 = setandget.radius
+  assert alt_rad1 == rad1
 
-setandget = JTSetAndGet()
-print(setandget.radius)
-setandget.radius = 5
-print(setandget.radius)
-setandget.radius = 3
-print(setandget.radius)
-with contextlib.suppress(ValueError):
-  setandget.radius = -5
-print(setandget.radius)
+  setandget.radius = 5
+  #print(setandget.radius)
+  alt_rad2 = setandget.radius
+  assert alt_rad2 == rad2
+
+  setandget.radius = 3
+  #print(setandget.radius)
+  alt_rad3 = setandget.radius
+  assert alt_rad3 == rad3
+
+  with contextlib.suppress(ValueError):
+    setandget.radius = -5
+  #print(setandget.radius)
+  alt_rad4 = setandget.radius
+  assert alt_rad4 == rad4
+  
+  # 1 5 3 3
 
 
 # # Areas Of Improvement
 #   - Introduce setter detection to reduce uneccessary setter = True kwargs
 
-# In[10]:
+# In[20]:
 
 
 
 
 
-# In[10]:
+# In[20]:
 
 
 
