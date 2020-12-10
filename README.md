@@ -1,7 +1,7 @@
 # ez_life
 The objective of ez_life is to make coding with Python easier by removing repetitive code while still maintaining the same level of functionality
 
-This repository contains Python scripts and notebooks required to make coding life ez
+This repository contains Python scripts and notebooks designed to make coding life ez
 
 	- ez_life:
 		- ez_life: the package containing all .ipynb dev files and converted .py files
