@@ -1,15 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# <a href="https://colab.research.google.com/github/Josiah-tan/ez_life/blob/main/ez_life/jt_property.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
-
-# # Implementation JTProperty
-#   - Uses EzProperty class which inherits from property
-#     - Currently EzProperty changes the setter function such that the return value is the value set by the setter
-
-# In[11]:
-
-
 class EzProperty(property):
   def __init__(self, *args, **kwargs):
     return super().__init__(*args, **kwargs)
@@ -27,9 +18,6 @@ class EzProperty(property):
     calls setter_preprocess wrapper to alter behaviour of _func
     """
     return super().setter(self.setter_preprocess(_func))
-
-
-# In[12]:
 
 
 import functools
@@ -52,12 +40,6 @@ class JTProperty:
           setattr(obj, public_name, _func(obj)) 
       return getattr(obj, protected_name)
     return wrapper
-
-
-# # Basic Property Demo
-# - prop3 is dependent upon the values of prop2 and prop 1 as shown below
-
-# In[13]:
 
 
 class PropDemo:
@@ -93,17 +75,9 @@ class PropDemo:
   
 
 
-# In[14]:
-
-
 if __name__ == '__main__':
   prop_dem = PropDemo()
   #print(prop_dem.prop3)
-
-
-# - The @JTProperty decorator uses less lines of code then the @property decorator, but achieves the same result
-
-# In[15]:
 
 
 class JTPropDemo:
@@ -124,18 +98,9 @@ class JTPropDemo:
   
 
 
-# In[16]:
-
-
 if __name__ == '__main__':
   a_prop_dem = JTPropDemo()
   assert a_prop_dem.prop3 == prop_dem.prop3
-
-
-# # Setter methods
-# - Consider a class that uses getter and setter methods as shown below:
-
-# In[17]:
 
 
 class SetAndGet:
@@ -155,11 +120,6 @@ class SetAndGet:
     if r <= 0:
       raise ValueError("radius should be greater than 0")
     self._radius = r
-
-
-# - In the test below, contextlib silences the ValueError that occurs with setting the radius to -5
-
-# In[18]:
 
 
 if __name__ == '__main__':
@@ -184,12 +144,6 @@ if __name__ == '__main__':
   # 1 5 3 3
 
 
-# - JTProperty() and .setter reduce abstraction involving usage of hidden "protected variables"
-#   - setter = True should be set when @radius.setter is used
-
-# In[19]:
-
-
 class JTSetAndGet:
   def __init__(self, r = 1):
     self.radius = r
@@ -202,9 +156,6 @@ class JTSetAndGet:
     if r <= 0:
       raise ValueError("radius should be greater than 0")
     return r
-
-
-# In[20]:
 
 
 if __name__ == '__main__':
@@ -233,16 +184,7 @@ if __name__ == '__main__':
   # 1 5 3 3
 
 
-# # Areas Of Improvement
-#   - Introduce setter detection to reduce uneccessary setter = True kwargs
 
-# In[20]:
-
-
-
-
-
-# In[20]:
 
 
 

@@ -20,6 +20,9 @@ test: $(TESTPY)
 
 
 %.py: %.ipynb
-	jupyter nbconvert $< --to="python" # --output=$@
+	jupyter nbconvert $< --to="python" \
+	--TemplateExporter.exclude_markdown=True \
+	--TemplateExporter.exclude_output_prompt=True \
+	--TemplateExporter.exclude_input_prompt=True # --output=$@
 
 
