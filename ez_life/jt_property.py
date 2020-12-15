@@ -65,6 +65,15 @@ class Graph:
       n.was_visited = False
 
 
+class DefaultSetter:
+    def __init__(self, setter):
+      self.setter = setter
+    def __call__(self, _func):
+      if str(self.setter).lower() in "default":
+        _func = _func.setter(defaultSetter)
+      return _func
+
+
 def EzProperty(JTProperty_obj):
   class ClsWrapper(property):
     def __init__(self, *args, **kwargs):
@@ -78,8 +87,8 @@ def EzProperty(JTProperty_obj):
       """
       def wrapper(obj, val):
         #JTProperty_obj.firstBeforeS_Get()
-        JTProperty_obj.joinAllThreads()
-        
+        JTProperty_obj.joinClsThreads()
+
         JTProperty_obj.cls_name2graph[JTProperty_obj.cls_name].resetDepDFS(obj, JTProperty_obj.protected_name)
         setattr(obj, JTProperty_obj.protected_name, _func(obj, val))
         #print(getattr(obj, protected_name))
@@ -101,7 +110,7 @@ class JTProperty:
   # dicts for clsWasDeclared multithreading
   cls_name2cls = {}
   cls_name2thread = {}
-  cls_name2meth2thread = {}
+  cls_name2active_t = {} # stores currently active threads
 
   # dict of class names (str) that have been decorated with JTProperty
   cls_name2graph = {}
@@ -109,13 +118,6 @@ class JTProperty:
     # Tri state "setter": True, Default, False
     self.setter = setter
     self.deps = self.preprocessDeps(deps)
-  
-  """
-  def firstBeforeS_Get(self):
-    if '_firstBeforeS_Get_first' in dir(self):
-      setattr(type(obj), public_name, getattr(type(obj), public_name).setter(default_setter))
-      self._firstBeforeS_Get_first = False
-  """
   
   def preprocessDeps(self, deps):
     """
@@ -154,65 +156,59 @@ class JTProperty:
     self.protected_name = f"_{self.public_name}"
 
     self.cls_name = _func.__qualname__.rsplit('.', 1)[0]
-    #_func_cls = inspect._findclass(_func) <- big annoying problem: can't get cls from _func within this __call__ method, cls is not a global variable yet
-
-    # ensures that JoinedAllThreads runs once only
-    self.joined_all_threads = False 
-    
+    #cls = inspect._findclass(_func) <- big annoying problem: can't get cls from _func within this __call__ method, cls is not a global variable yet
 
     self.createDepGraph()
 
     # the getter method here
+    @DefaultSetter(self.setter)
     @EzProperty(self)
     @functools.wraps(_func)
     def wrapper(obj):
       #might need something here to connect nodes with inherited classes
-      self.joinAllThreads()
+      self.joinClsThreads()
       #self.firstBeforeS_Get()
       return self.getVar(obj)
-    
-    # perform tasks after cls is declared
-    self.clsWasDeclared()
-  
-    """
-    if str(self.setter).lower() in "default":
-      wrapper = wrapper.setter(defaultSetter)
-    """
 
+    # perform tasks after cls is declared (run this last to reduce busy waiting load)
+    self.clsWasDeclared()
     return wrapper
+
   def clsWasDeclared(self):
     def cls_name2Cls():
+      # Need someone to help me make a better listener than this plz
       while self.cls_name not in dir(sys.modules.get(self._func.__module__)):
         pass
-      self.cls_name2cls[self.cls_name] = getattr(sys.modules.get(self._func.__module__), self.cls_name)
+
+      # essentially the same thing as in inspect.py -> _findclass() 
+      cls = sys.modules.get(self._func.__module__)
+      for name in self.cls_name.split('.'):
+        cls = getattr(cls, name) 
+
+      self.cls_name2cls[self.cls_name] = cls #getattr(sys.modules.get(self._func.__module__), self.cls_name)
     
-    # we only run this block once for one method
-    if self.cls_name2cls.get(self.cls_name, None) is None:
-      #NOTE! Might need to join pre-existing threads, maybe
+    # we only run this block once for the first decorated method in the class
+    if self.cls_name2thread.get(self.cls_name, None) is None:
+      #NOTE! Might need to join pre-existing threads somewhere in the code, maybe
       self.cls_name2thread[self.cls_name] = threading.Thread(target = cls_name2Cls)
       self.cls_name2thread[self.cls_name].start()
-      
-      # initialise a dictionary for the cls_name to store individual threads for each method
-      self.cls_name2meth2thread[self.cls_name] = {}
-    
-    def meth2Thread():
-      # ensures that cls is available before running this thread
-      self.cls_name2thread[self.cls_name].join()
 
-      if str(self.setter).lower() in "default":
-        cls = self.cls_name2cls[self.cls_name]
-        # essentially: cls._func = self._func.setter(default_setter)
-        setattr(cls, self.public_name, getattr(cls, self.public_name).setter(defaultSetter))
-      #print(self.cls_name2cls[self.cls_name], self._func)
-    
-    self.cls_name2meth2thread[self.cls_name][self._func] = threading.Thread(target = meth2Thread)
-    self.cls_name2meth2thread[self.cls_name][self._func].start()
-  
-  def joinAllThreads(self):
-    if self.joined_all_threads:
+      self.cls_name2active_t[self.cls_name] = self.cls_name2thread[self.cls_name] # to denote that its running
+
+  def joinClsThreads(self):
+    while len(self.cls_name2active_t) != 0:
+      cls_name, active_t = self.cls_name2active_t.popitem()
+      active_t.join()
+
+    #for cls_name, thread in self.cls_name2thread.items():
+      #thread.join()
+    """
+    thread = self.cls_name2thread.get(self.cls_name, None)
+    if thread is None:
       pass
     else:
-      [t.join() for t in self.cls_name2meth2thread[self.cls_name].values()]
+      thread.join()
+    """
 
 
 if __name__ == '__main__':
@@ -397,37 +393,21 @@ if __name__ == "__main__":
 
 
 class GraphDemo:
-  @JTProperty(setter = True)
+  @JTProperty(setter = "Default")
   def a(self):
     return 'a'
 
-  @a.setter
-  def a(self, value):
-    return value
-
-  @JTProperty(setter = True, deps = 'a')
+  @JTProperty(setter = "Default", deps = 'a')
   def b(self):
     return self.a + '->b'
-
-  @b.setter
-  def b(self, value):
-    return value
   
-  @JTProperty(setter = True)
+  @JTProperty(setter = "Default")
   def c(self):
     return 'c'
 
-  @c.setter
-  def c(self, value):
-    return value
-  
-  @JTProperty(setter = True, deps = ['c', 'b'])
+  @JTProperty(setter = "Default", deps = ['c', 'b'])
   def d(self):
     return self.b + '->d' + ' and ' + self.c + '->d'
-  
-  @d.setter
-  def d(self, value):
-    return value
 
 
 if __name__ == '__main__':
@@ -458,37 +438,21 @@ if __name__ == '__main__':
 
 
 class GraphDemo2:
-  @JTProperty(setter = True, deps = ['b', 'd'])
+  @JTProperty(setter = "Default", deps = ['b', 'd'])
   def a(self):
     return self.b + '->a and ' + self.d + '->a'
 
-  @a.setter
-  def a(self, value):
-    return value
-
-  @JTProperty(setter = True, deps = 'a')
+  @JTProperty(setter = "Default", deps = 'a')
   def b(self):
     return self.a + '->b'
-
-  @b.setter
-  def b(self, value):
-    return value
   
-  @JTProperty(setter = True, deps = 'b')
+  @JTProperty(setter = "Default", deps = 'b')
   def c(self):
     return self.b + '->c'
 
-  @c.setter
-  def c(self, value):
-    return value
-  
-  @JTProperty(setter = True, deps = ['c'])
+  @JTProperty(setter = "Default", deps = ['c'])
   def d(self):
     return self.c + '->d'
-  
-  @d.setter
-  def d(self, value):
-    return value
 
 
 if __name__ == '__main__':
@@ -536,6 +500,11 @@ if __name__ == '__main__':
   #print(graph_demo.a)
   #print(graph_demo.b)
   #print(graph_demo.c)
+
+
+# checking for any residual threads lyin about
+if __name__ == "__main__":
+  print(threading.enumerate())
 
 
 
