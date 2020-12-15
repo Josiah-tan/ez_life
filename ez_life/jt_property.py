@@ -2,6 +2,8 @@
 # coding: utf-8
 
 import functools
+import sys
+import threading
 
 
 class Node:
@@ -75,9 +77,12 @@ def EzProperty(JTProperty_obj):
         - sets return value of _func to protected name of _func
       """
       def wrapper(obj, val):
-        protected_name = f"_{_func.__name__}"
-        JTProperty_obj.cls_name2graph[JTProperty_obj.cls_name].resetDepDFS(obj, protected_name)
-        setattr(obj, protected_name, _func(obj, val))
+        #JTProperty_obj.firstBeforeS_Get()
+        JTProperty_obj.joinAllThreads()
+        
+        JTProperty_obj.cls_name2graph[JTProperty_obj.cls_name].resetDepDFS(obj, JTProperty_obj.protected_name)
+        setattr(obj, JTProperty_obj.protected_name, _func(obj, val))
+        #print(getattr(obj, protected_name))
       return wrapper
   
     def setter(self, _func):
@@ -88,12 +93,29 @@ def EzProperty(JTProperty_obj):
   return ClsWrapper
 
 
+def defaultSetter(obj, var):
+  return var
+
 class JTProperty:
+
+  # dicts for clsWasDeclared multithreading
+  cls_name2cls = {}
+  cls_name2thread = {}
+  cls_name2meth2thread = {}
+
   # dict of class names (str) that have been decorated with JTProperty
   cls_name2graph = {}
   def __init__(self, setter = False, deps = None):
+    # Tri state "setter": True, Default, False
     self.setter = setter
     self.deps = self.preprocessDeps(deps)
+  
+  """
+  def firstBeforeS_Get(self):
+    if '_firstBeforeS_Get_first' in dir(self):
+      setattr(type(obj), public_name, getattr(type(obj), public_name).setter(default_setter))
+      self._firstBeforeS_Get_first = False
+  """
   
   def preprocessDeps(self, deps):
     """
@@ -107,43 +129,90 @@ class JTProperty:
     assert all(isinstance(dep, (str)) for dep in deps)
     return [f"_{dep}" for dep in deps]
 
-  def getVar(self, _func, obj, protected_name, public_name):
+  def getVar(self, obj):
     # if self._name is not available atm or it is set to None
-    if (protected_name not in dir(obj)) or (getattr(obj, protected_name) is None):
-      if (not(self.setter)):
-        setattr(obj, protected_name, _func(obj)) 
+    if (self.protected_name not in dir(obj)) or (getattr(obj, self.protected_name) is None):
+      if self.setter == False:
+        setattr(obj, self.protected_name, self._func(obj)) 
       else:
         # call setter method obj.name with the return value of the property function, this effectively sets obj._name
-        setattr(obj, public_name, _func(obj)) 
-    return getattr(obj, protected_name)
+        setattr(obj, self.public_name, self._func(obj)) 
+    return getattr(obj, self.protected_name)
 
-  def createDepGraph(self, cls_name, protected_name):
-    cls_graph = self.cls_name2graph.get(cls_name, None)
+  def createDepGraph(self):
+    cls_graph = self.cls_name2graph.get(self.cls_name, None)
     if cls_graph is None:
-      self.cls_name2graph[cls_name] = Graph(cls_name)
+      self.cls_name2graph[self.cls_name] = Graph(self.cls_name)
 
     if self.deps is not None:
-      self.cls_name2graph[cls_name].add(out = self.deps, into = protected_name)
+      self.cls_name2graph[self.cls_name].add(out = self.deps, into = self.protected_name)
       #self.cls_name2graph[cls_name].disp()
 
   def __call__(self, _func):
-    public_name = _func.__name__
-    protected_name = f"_{public_name}"
-
+    self._func = _func
+    self.public_name = _func.__name__
+    self.protected_name = f"_{self.public_name}"
 
     self.cls_name = _func.__qualname__.rsplit('.', 1)[0]
     #_func_cls = inspect._findclass(_func) <- big annoying problem: can't get cls from _func within this __call__ method, cls is not a global variable yet
 
-    self.createDepGraph(self.cls_name, protected_name)
+    # ensures that JoinedAllThreads runs once only
+    self.joined_all_threads = False 
+    
+
+    self.createDepGraph()
 
     # the getter method here
     @EzProperty(self)
     @functools.wraps(_func)
     def wrapper(obj):
       #might need something here to connect nodes with inherited classes
-      return self.getVar(_func, obj, protected_name, public_name)
+      self.joinAllThreads()
+      #self.firstBeforeS_Get()
+      return self.getVar(obj)
+    
+    # perform tasks after cls is declared
+    self.clsWasDeclared()
+  
+    """
+    if str(self.setter).lower() in "default":
+      wrapper = wrapper.setter(defaultSetter)
+    """
 
     return wrapper
+  def clsWasDeclared(self):
+    def cls_name2Cls():
+      while self.cls_name not in dir(sys.modules.get(self._func.__module__)):
+        pass
+      self.cls_name2cls[self.cls_name] = getattr(sys.modules.get(self._func.__module__), self.cls_name)
+    
+    # we only run this block once for one method
+    if self.cls_name2cls.get(self.cls_name, None) is None:
+      #NOTE! Might need to join pre-existing threads, maybe
+      self.cls_name2thread[self.cls_name] = threading.Thread(target = cls_name2Cls)
+      self.cls_name2thread[self.cls_name].start()
+      
+      # initialise a dictionary for the cls_name to store individual threads for each method
+      self.cls_name2meth2thread[self.cls_name] = {}
+    
+    def meth2Thread():
+      # ensures that cls is available before running this thread
+      self.cls_name2thread[self.cls_name].join()
+
+      if str(self.setter).lower() in "default":
+        cls = self.cls_name2cls[self.cls_name]
+        # essentially: cls._func = self._func.setter(default_setter)
+        setattr(cls, self.public_name, getattr(cls, self.public_name).setter(defaultSetter))
+      #print(self.cls_name2cls[self.cls_name], self._func)
+    
+    self.cls_name2meth2thread[self.cls_name][self._func] = threading.Thread(target = meth2Thread)
+    self.cls_name2meth2thread[self.cls_name][self._func].start()
+  
+  def joinAllThreads(self):
+    if self.joined_all_threads:
+      pass
+    else:
+      [t.join() for t in self.cls_name2meth2thread[self.cls_name].values()]
 
 
 if __name__ == '__main__':
@@ -281,6 +350,50 @@ if __name__ == '__main__':
   with contextlib.suppress(ValueError):
     setandget.radius = -5
   print_assert(setandget.radius, '3')
+
+
+# writing the setter explicitly
+class SetterDemo:
+  @JTProperty(setter=True)
+  def prop(self):
+    return 1
+  
+  @prop.setter
+  def prop(self, val):
+    return val
+
+
+if __name__ == "__main__":
+  # test setter before getter
+  setter_demo = SetterDemo()
+  setter_demo.prop = 2
+  print_assert(setter_demo.prop, '2')
+
+
+if __name__ == "__main__":
+  # test getter before setter
+  setter_demo = SetterDemo()
+  print_assert(setter_demo.prop, '1')
+
+
+# writing the setter implicitly
+class AutoSetterDemo:
+  @JTProperty(setter="Default")
+  def prop(self):
+    return 1
+
+
+if __name__ == "__main__":
+  # test setter before getter
+  auto_setter_demo = AutoSetterDemo()
+  auto_setter_demo.prop = 2
+  print_assert(auto_setter_demo.prop, '2')
+
+
+if __name__ == "__main__":
+  # test getter before setter
+  auto_setter_demo = AutoSetterDemo()
+  print_assert(auto_setter_demo.prop, '1')
 
 
 class GraphDemo:
