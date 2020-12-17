@@ -1,9 +1,14 @@
 # ez_life
 The objective of ez_life is to make coding with Python easier by removing repetitive code while still maintaining the same level of functionality
 
+# Installation
+```
+pip install -U ez_life
+```
 # param2attr
 - Here is a little sneak peak of what you can do with this package!
 	- First consider this code block:
+
 
 ```python
 from ez_life import Param2attr
@@ -55,6 +60,8 @@ class SetAndGet:
 - Using the @JTProperty decorator, we can see that we can abstract away the self._radius variable and hence write less code!
 
 ```python
+from ez_life import JTProperty
+
 class JTSetAndGet:
   def __init__(self, r = 1):
     self.radius = r
