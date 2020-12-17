@@ -1,0 +1,11 @@
+LICENSE
+MANIFEST.in
+README.md
+setup.py
+ez_life/__init__.py
+ez_life/jt_property.py
+ez_life/param2attr.py
+ez_life.egg-info/PKG-INFO
+ez_life.egg-info/SOURCES.txt
+ez_life.egg-info/dependency_links.txt
+ez_life.egg-info/top_level.txt

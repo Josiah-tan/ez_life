@@ -31,6 +31,10 @@ testpypi: $(PACKAGE_DIR)
 	twine check dist/*
 	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 
+pypi: $(PACKAGE_DIR)
+	python3 setup.py sdist bdist_wheel
+	twine check dist/*
+	twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
 
 package: $(PACKAGE_DIR)
 
