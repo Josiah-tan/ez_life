@@ -1,14 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# <a href="https://colab.research.google.com/github/Josiah-tan/ez_life/blob/main/ez_life/param2attr.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
-
-# # Implementation 
-# - Code below implements the desired features for the param2attr idea to make code more concise
-
-# In[15]:
-
-
 import inspect
 import functools
 class Param2attr:
@@ -50,24 +42,12 @@ class Param2attr:
     return wrapper
 
 
-# # Param2attr
-# - The objective of this class decorator is to automate creation of class attributes from arguments passed into an \_\_init\_\_ method 
-# - Say we have a class that looks like this:
-
-# In[16]:
-
-
 class Foo:
   def __init__(self, param1 = None, param2 = None, param3 = None):
     # This sux
     self.param1 = param1
     self.param2 = param2
     self.param3 = param3
-
-
-# - We can instead create a class that looks like this, using a property decorator to perform the param to attribute assignments
-
-# In[17]:
 
 
 class Foo:
@@ -77,21 +57,11 @@ class Foo:
     pass
 
 
-# In[18]:
-
-
 if __name__ == '__main__':
   foo = Foo(param1 = "john", param2 = "hog", param3 = "sam")
   assert foo.param1 == "john"
   assert foo.param2 == "hog"
   assert foo.param3 == "sam"
-
-
-# # Exclude
-# - The optional exclude parameter excludes any parameters in creating attributes for the class
-#   - You can specify this as a list
-
-# In[19]:
 
 
 class Foo:
@@ -106,20 +76,12 @@ class Foo:
     pass
 
 
-# In[20]:
-
-
 if __name__ == '__main__':
   foo = Foo("john", "hog", "sam")
   foo_dir = dir(foo)
   assert foo.param3 == "sam"
   assert 'param1' not in foo_dir
   assert 'param2' not in foo_dir
-
-
-# - You can also specify the exclude param as a string
-
-# In[21]:
 
 
 class Foo:
@@ -135,22 +97,12 @@ class Foo:
     pass
 
 
-# In[22]:
-
-
 if __name__ == '__main__':
   foo = Foo("john", "hog", "sam")
   foo_dir = dir(foo)
   assert foo.param2 == "hog"
   assert foo.param3 == "sam"
   assert 'param1' not in foo_dir
-
-
-# # The General Case
-# - The code below exhibits how @Param2attr can be used in general scenarios
-#   - First we will show the traditional, hardcoded implementation
-
-# In[23]:
 
 
 class Foo:
@@ -161,9 +113,6 @@ class Foo:
     self.kwarg1 = kwarg1
     self.default1 = default1
     [setattr(self, key, val) for key, val in kwargs.items()]
-
-
-# In[24]:
 
 
 if __name__ == '__main__':
@@ -179,18 +128,10 @@ if __name__ == '__main__':
   default1 = foo.default1
 
 
-# - The code below does the same thing, but is simplified via the @Param2attr decorator
-
-# In[25]:
-
-
 class Foo:
   @Param2attr(exclude = None)
   def __init__(self, arg1, arg2, *args, kwarg1 = 'kwg1', default1 = 'optkwg1', **kwargs):
     pass
-
-
-# In[26]:
 
 
 if __name__=='__main__':
@@ -204,9 +145,6 @@ if __name__=='__main__':
   assert kwarg1 == foo.kwarg1
   assert kwarg2 == foo.kwarg2
   assert default1 == foo.default1
-
-
-# In[26]:
 
 
 
