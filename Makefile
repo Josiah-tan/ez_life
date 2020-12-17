@@ -1,10 +1,11 @@
-MOD_DIR := ez_life
+DEV_DIR := ez_life
+PACKAGE_DIR := ez_life_package
 
-IPYNB := $(shell find $(MOD_DIR) -name *.ipynb)
+IPYNB := $(shell find $(DEV_DIR) -name *.ipynb)
 MODPY := $(IPYNB:.ipynb=.py)
 TESTPY := $(addprefix test_, $(notdir $(MODPY)))
 
-.PHONY: all test
+.PHONY: all test package
 
 all: $(MODPY)
 	echo $^
@@ -25,4 +26,5 @@ test: $(TESTPY)
 	--TemplateExporter.exclude_output_prompt=True \
 	--TemplateExporter.exclude_input_prompt=True # --output=$@
 
-
+package: $(PACKAGE_DIR)
+	rsync -avr --exclude='*.ipynb' --delete $(DEV_DIR)/ $(PACKAGE_DIR)
