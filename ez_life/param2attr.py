@@ -4,7 +4,15 @@
 import inspect
 import functools
 class Param2attr:
-  def __init__(self, exclude = None):
+  def __init__(self, exclude = None, set_extra_args = False, set_extra_kwargs = False):
+    self.preprocessExclude(exclude)
+    self.set_extra_args = set_extra_args
+    self.set_extra_kwargs = set_extra_kwargs
+
+    assert isinstance(self.set_extra_args, bool)
+    assert isinstance(self.set_extra_kwargs, bool)
+
+  def preprocessExclude(self, exclude):
     if exclude is None:
       self.exclude = []
 
@@ -32,14 +40,20 @@ class Param2attr:
       # setting from dict
       [setattr(obj, key, val) for key, val in dic.items() if key not in self.exclude]
       #setting from extra args
-      if _args is not None:
+      if self.set_extra_args and _args is not None:
         [setattr(obj, str(key), key) for key in _args if key not in self.exclude]
       #setting from extra kwargs
-      if _kwargs is not None:
+      if self.set_extra_kwargs and _kwargs is not None:
         [setattr(obj, key, val) for key, val in _kwargs.items() if key not in self.exclude]
 
       return _func(obj, *args, **kwargs)
     return wrapper
+
+
+#!pip install -U ez-life
+
+
+#from ez_life import Param2attr
 
 
 class Foo:
@@ -129,7 +143,7 @@ if __name__ == '__main__':
 
 
 class Foo:
-  @Param2attr(exclude = None)
+  @Param2attr(exclude = None, set_extra_args = True, set_extra_kwargs = True)
   def __init__(self, arg1, arg2, *args, kwarg1 = 'kwg1', default1 = 'optkwg1', **kwargs):
     pass
 
@@ -144,6 +158,23 @@ if __name__=='__main__':
   assert tp_foo_4 == type(getattr(foo, '4'))
   assert kwarg1 == foo.kwarg1
   assert kwarg2 == foo.kwarg2
+  assert default1 == foo.default1
+
+
+class Foo:
+  @Param2attr(exclude = None, set_extra_args = False, set_extra_kwargs = False)
+  def __init__(self, arg1, arg2, *args, kwarg1 = 'kwg1', default1 = 'optkwg1', **kwargs):
+    pass
+
+
+if __name__=='__main__':
+  foo = Foo(1, 'ag2', 'ag3', 4, kwarg1 = 'kwargv1', kwarg2 = 'kwargv2')
+  assert arg1 == foo.arg1
+  assert arg2 == foo.arg2
+  assert 'ag3' not in dir(foo)  
+  assert '4' not in dir(foo)
+  assert kwarg1 == foo.kwarg1
+  assert 'kwarg2' not in dir(foo)
   assert default1 == foo.default1
 
 

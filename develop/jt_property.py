@@ -116,6 +116,12 @@ def EzProperty(JTProperty_obj):
     def __init__(self, *args, **kwargs):
       return super().__init__(*args, **kwargs)
     
+    def clsGraphSysInit(self, cls, cls_name):
+      if JTProperty.cls_name2graph_sys.get(cls_name) is None: # quickly creating a graph for an object with child class having no JTProperties :<
+        JTProperty.cls_name2graph_sys[cls_name] = ClsGraphSys()
+        cls_graph_sys = JTProperty.cls_name2graph_sys[cls_name]
+        JTProperty_obj.cpParentGraphs(cls, cls_graph_sys)
+
     def setter_preprocess(self, _func):
       """
       Performs preprocessing on the self._func decorated by @func.setter
@@ -127,7 +133,9 @@ def EzProperty(JTProperty_obj):
 
         cls = type(obj)
         cls_name = cls.__qualname__
-        JTProperty_obj.cls_name2graph_sys[cls_name].resetDepDFS(cls, obj, JTProperty_obj.protected_name)
+        self.clsGraphSysInit(cls, cls_name)
+
+        JTProperty.cls_name2graph_sys[cls_name].resetDepDFS(cls, obj, JTProperty_obj.protected_name)
 
         setattr(obj, JTProperty_obj.protected_name, _func(obj, val))
       return wrapper
@@ -254,6 +262,7 @@ class JTProperty:
 
       self.cls_name2active_t[self.cls_name] = self.cls_name2thread[self.cls_name] # to denote that its running
 
+
   def createDepGraph(self, cls):
     """ ensuring that all parent threads are complete"""
     for parent in cls.__mro__[-2:0:-1]: # exclude beginning and end, and reverse the list
@@ -264,18 +273,8 @@ class JTProperty:
     
     """cls_name2graph_sys initialisation and copying class parent graphs"""
     self.cls_name2graph_sys[self.cls_name] = ClsGraphSys({self.cls_name : self.cls_name2graph[self.cls_name]}) #ClsGraph inherits from dict, has method resetDepGraph
-
     cls_graph_sys = self.cls_name2graph_sys[self.cls_name]
-
-    def cpParentGraphs(cls):
-      for parent in cls.__bases__: # only use parents that are directly inherited
-        if parent is not object: # case for no inheritence
-          parent_graph = self.cls_name2graph_sys.get(parent.__qualname__) # cases where classes may not have JTProperty decorators
-          if parent_graph is not None:
-            cls_graph_sys.update(copy.deepcopy(parent_graph)) # make deep copies of the parent graphs to prevent effecting the parent graph
-          else:
-            cpParentGraphs(parent) # if a class does not have JTProperty decorators, get parent classes of this parent
-    cpParentGraphs(cls)
+    self.cpParentGraphs(cls, cls_graph_sys)
 
     """connecting nodes from parent classes"""
     prot_names2del = []
@@ -297,10 +296,26 @@ class JTProperty:
     for protected_name in prot_names2del:
         del cls_graph_sys[self.cls_name].data2node[protected_name]
     
+  def cpParentGraphs(self, cls, cls_graph_sys):
+    for parent in cls.__bases__: # only use parents that are directly inherited
+      if parent is not object: # case for no inheritence
+        parent_graph = self.cls_name2graph_sys.get(parent.__qualname__) # cases where classes may not have JTProperty decorators
+        if parent_graph is not None:
+          cls_graph_sys.update(copy.deepcopy(parent_graph)) # make deep copies of the parent graphs to prevent effecting the parent graph
+        else:
+          self.cpParentGraphs(parent, cls_graph_sys) # if a class does not have JTProperty decorators, get parent classes of this parent
+
+          
   def joinClsThreads(self):
     while len(self.cls_name2active_t) != 0:
       cls_name, active_t = self.cls_name2active_t.popitem()
       active_t.join()
+
+
+#!pip install -U ez-life
+
+
+#from ez_life import JTProperty
 
 
 if __name__ == '__main__':
@@ -745,6 +760,55 @@ if __name__ == '__main__':
   #_c points to {'_d'}}
 
 
+class OuterClass:
+  class InnerParentClass:
+    @JTProperty(setter = "Default")
+    def a(self):
+      return 'a'
+
+  class InnerChildClass(InnerParentClass):
+    @JTProperty(setter = "Default", deps = 'a')
+    def b(self):
+      return self.a + '->b'
+    
+    @JTProperty(setter = "Default")
+    def c(self):
+      return 'c'
+  
+    @JTProperty(setter = "Default", deps = ['c', 'b'])
+    def d(self):
+      return self.b + '->d' + ' and ' + self.c + '->d'
+
+
+if __name__ == '__main__':
+  graph_demo = OuterClass.InnerChildClass()
+  print_assert(graph_demo.d, 'a->b->d and c->d')
+  graph_demo.a = 'A'
+  print_assert(graph_demo.d, 'A->b->d and c->d')
+  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
+  #for cls: OuterClass.InnerChildClass
+  #_b points to {'_d'}
+  #_c points to {'_d'}
+  #_d points to set()
+  #for cls: OuterClass.InnerParentClass
+  #_a points to {'_b'}
+
+
+if __name__ == '__main__':
+  graph_demo = OuterClass.InnerChildClass()
+  graph_demo.d = 'a->b->d and c->d'
+  graph_demo.a = 'A'
+  print_assert(graph_demo._d, 'a->b->d and c->d')
+  print_assert(graph_demo.d, 'a->b->d and c->d')
+  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
+  #for cls: OuterClass.InnerChildClass
+  #_b points to {'_d'}
+  #_c points to {'_d'}
+  #_d points to set()
+  #for cls: OuterClass.InnerParentClass
+  #_a points to {'_b'}
+
+
 class ParentWithJT:
   @JTProperty(setter = "Default")
   def a(self):
@@ -797,61 +861,66 @@ if __name__ == '__main__':
   #_b points to {'_d'}
 
 
-class OuterClass:
-  class InnerParentClass:
-    @JTProperty(setter = "Default")
-    def a(self):
-      return 'a'
+class ParentWithJT1:
+  @JTProperty(setter = "Default")
+  def a(self):
+    return 'a'
 
-  class InnerChildClass(InnerParentClass):
-    @JTProperty(setter = "Default", deps = 'a')
-    def b(self):
-      return self.a + '->b'
-    
-    @JTProperty(setter = "Default")
-    def c(self):
-      return 'c'
-  
-    @JTProperty(setter = "Default", deps = ['c', 'b'])
-    def d(self):
-      return self.b + '->d' + ' and ' + self.c + '->d'
+  @JTProperty(setter = "Default", deps = 'a')
+  def b(self):
+    return self.a + '->b'
+
+class ParentWithJT2(ParentWithJT1):
+  @JTProperty(setter = "Default")
+  def c(self):
+    return 'c'
+
+  @JTProperty(setter = "Default", deps = ['c', 'b'])
+  def d(self):
+    return self.b + '->d' + ' and ' + self.c + '->d'
+
+class ChildNoJT(ParentWithJT2):
+  def randomMethodHere(self):
+    pass
+
+class ChildNoJT2(ChildNoJT):
+  def randomeMethodHere2(self):
+    pass
 
 
 if __name__ == '__main__':
-  graph_demo = OuterClass.InnerChildClass()
+  graph_demo = ChildNoJT2()
   print_assert(graph_demo.d, 'a->b->d and c->d')
   graph_demo.a = 'A'
   print_assert(graph_demo.d, 'A->b->d and c->d')
   JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
-  #for cls: OuterClass.InnerChildClass
-  #_b points to {'_d'}
+  #for cls: ChildWithJT
   #_c points to {'_d'}
   #_d points to set()
-  #for cls: OuterClass.InnerParentClass
+  #for cls: ParentWithJT
   #_a points to {'_b'}
+  #_b points to {'_d'}
 
 
 if __name__ == '__main__':
-  graph_demo = OuterClass.InnerChildClass()
+  graph_demo = ChildNoJT2()
   graph_demo.d = 'a->b->d and c->d'
   graph_demo.a = 'A'
   print_assert(graph_demo._d, 'a->b->d and c->d')
   print_assert(graph_demo.d, 'a->b->d and c->d')
   JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
-  #for cls: OuterClass.InnerChildClass
-  #_b points to {'_d'}
+  #for cls: ChildWithJT
   #_c points to {'_d'}
   #_d points to set()
-  #for cls: OuterClass.InnerParentClass
+  #for cls: ParentWithJT
   #_a points to {'_b'}
+  #_b points to {'_d'}
 
 
 # checking for any residual threads lyin about
 if __name__ == "__main__":
+  import threading
   print(threading.enumerate())
   # should look something like this:
   #[<_MainThread(MainThread, started 140206017951616)>, <Thread(Thread-2, started daemon 140205621974784)>, <Heartbeat(Thread-3, started daemon 140205613582080)>, <ParentPollerUnix(Thread-1, started daemon 140205549238016)>]
-
-
-
 

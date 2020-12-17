@@ -5,7 +5,7 @@ IPYNB := $(shell find $(DEV_DIR) -name *.ipynb)
 MODPY := $(IPYNB:.ipynb=.py)
 TESTPY := $(addprefix test_, $(notdir $(MODPY)))
 
-.PHONY: all test testpypi package
+.PHONY: all test package testpypi pypi
 
 all: $(MODPY)
 	echo $^
@@ -29,14 +29,14 @@ test: $(TESTPY)
 testpypi: $(PACKAGE_DIR)
 	python3 setup.py sdist bdist_wheel
 	twine check dist/*
-	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+	twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ dist/*
 
 pypi: $(PACKAGE_DIR)
 	python3 setup.py sdist bdist_wheel
 	twine check dist/*
-	twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
+	twine upload --skip-existing --repository-url https://upload.pypi.org/legacy/ dist/*
 
 package: $(PACKAGE_DIR)
 
-$(PACKAGE_DIR):
+$(PACKAGE_DIR): $(DEV_DIR)
 	rsync -avr --exclude='*.ipynb' --delete $(DEV_DIR)/ $(PACKAGE_DIR)

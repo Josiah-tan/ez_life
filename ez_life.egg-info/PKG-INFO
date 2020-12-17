@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: ez-life
-Version: 1.0.1
+Version: 1.0.2
 Summary: A Python Package to make life ez for pythonistas
 Home-page: https://github.com/Josiah-tan/ez_life
 Author: Josiah Tan
@@ -9,9 +9,14 @@ License: MIT
 Description: # ez_life
         The objective of ez_life is to make coding with Python easier by removing repetitive code while still maintaining the same level of functionality
         
+        # Installation
+        ```
+        pip install -U ez_life
+        ```
         # param2attr
         - Here is a little sneak peak of what you can do with this package!
         	- First consider this code block:
+        
         
         ```python
         from ez_life import Param2attr
@@ -34,7 +39,7 @@ Description: # ez_life
         		pass
         ```
         
-        - If you are interested to learn about the implementation or other features that param2attr supports, feel free to read the [documentation](https://colab.research.google.com/github/Josiah-tan/ez_life/blob/main/ez_life/param2attr.ipynb)
+        - If you are interested to learn about the implementation or other features that param2attr supports, feel free to read the [documentation](https://colab.research.google.com/drive/1PStbTEDiuXgjIKrMOcJAbY9NOg23w9TK?usp=sharing)
         
         # JTProperty
         - Ez_life can also manage variable dependencies, building upon the @property decorator!
@@ -63,6 +68,8 @@ Description: # ez_life
         - Using the @JTProperty decorator, we can see that we can abstract away the self._radius variable and hence write less code!
         
         ```python
+        from ez_life import JTProperty
+        
         class JTSetAndGet:
           def __init__(self, r = 1):
             self.radius = r
@@ -81,8 +88,7 @@ Description: # ez_life
         	- Automatic setter creation
         	- Graph Dependencies
         		- Support for inheritence
-        - Read the [documentation](https://colab.research.google.com/github/Josiah-tan/ez_life/blob/main/ez_life/jt_property.ipynb) here to learn about these features!
-        
+        - Read the [documentation](https://colab.research.google.com/drive/1yt7lT1H9xhXY7OVo7DGaW-APm-qHWOpR?usp=sharing) here to learn about these features!
         
         # ez_life directory layout:
         
