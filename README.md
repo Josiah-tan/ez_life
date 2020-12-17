@@ -31,7 +31,7 @@ class Foo:
 		pass
 ```
 
-- If you are interested to learn about the implementation or other features that param2attr supports, feel free to read the [documentation](https://colab.research.google.com/drive/11g4SI09xZeMBs_qr8v7kS3bKfA0IcM4K?usp=sharing)
+- If you are interested to learn about the implementation or other features that param2attr supports, feel free to read the [documentation](https://colab.research.google.com/drive/1PStbTEDiuXgjIKrMOcJAbY9NOg23w9TK?usp=sharing)
 
 # JTProperty
 - Ez_life can also manage variable dependencies, building upon the @property decorator!
@@ -80,8 +80,7 @@ class JTSetAndGet:
 	- Automatic setter creation
 	- Graph Dependencies
 		- Support for inheritence
-- Read the [documentation](https://colab.research.google.com/drive/1B4ZBJwniIEK3TMIGcdZoHSl5tdp9K5ZC?usp=sharing) here to learn about these features!
-
+- Read the [documentation](https://colab.research.google.com/drive/1yt7lT1H9xhXY7OVo7DGaW-APm-qHWOpR?usp=sharing) here to learn about these features!
 
 # ez_life directory layout:
 
