@@ -14,6 +14,7 @@ class Node:
     self._edges = set()
 
   def addEdge(self, edges):
+    """ add edges pointing out of self"""
     assert isinstance(edges, set)
     self._edges.update(edges) 
 
@@ -24,6 +25,7 @@ class Graph:
     self.data2node = {}
 
   def data2Node(self, data):
+    """ Gets a node if it exists, else makes a node and finally returns this node"""
     node = self.data2node.get(data, None)
     if node is None:
       node = Node(data)
@@ -31,8 +33,9 @@ class Graph:
     return node
 
   def add(self, out, into):
-    out = out if isinstance(out, list) else {out}
-    into = into if isinstance(into, list) else {into}
+    """ Add edges between nodes"""
+    out = out if isinstance(out, (list, set)) else {out}
+    into = into if isinstance(into, (list, set)) else {into}
 
     outNodes = {self.data2Node(o) for o in out}
     intoNodes = {self.data2Node(i) for i in into}
@@ -41,7 +44,7 @@ class Graph:
       outNode.addEdge(intoNodes)
   
   def disp(self):
-    #print("displaying graph")
+    """ display the graph """
     for data, node in self.data2node.items():
       print(f"{data} points to {set(n.data for n in node._edges)}")
 
@@ -52,25 +55,25 @@ class ClsGraphSys(dict):
     Runs a DFS alrgorithm on the graph datastructure to reset all downstream dependencies to None
     parameters
       -- cls = type(obj)
-      -- cls_name = type(obj).__qualname__
       -- obj: the class object that we are dealing with
-      -- protected_name: the name prefixed with an underscore
+      -- protected_name: the name of func prefixed with an underscore
     """
 
-    """ find node of protected_name """
+    """ find node of protected_name by traversing through the MRO class heirarchy"""
     node = None
-    for parent in cls.__mro__[:-1]:
-      parent_graph = self.get(parent.__qualname__, None)
-      if parent_graph is not None:
-        node = parent_graph.data2node.get(protected_name, None)
+    for parent in cls.__mro__[:-1]: # exclude object class
+      parent_graph = self.get(parent.__qualname__, None) # get the parent graph (None to make sure that )
+      if parent_graph is not None: 
+        node = parent_graph.data2node.get(protected_name, None) # get the node within the parent graph
         if node is not None:
             break
 
-    if node is None:
+    if node is None: # Honestly, I forgot what this was for
       return
 
+    """ perform a recursive reset """
     def recursiveReset(node):
-      if (not isinstance(node, Node)) or node.was_visited:
+      if node.was_visited or not isinstance(node, Node):
         return
       node.was_visited = True
       if (node.data in dir(obj)) and getattr(obj, node.data) is not None: # added this here so that recursion stops when the attribute is already None such that downstream dependencies are not reset since they are assumed to be also None, or preset to some value 
@@ -87,6 +90,7 @@ class ClsGraphSys(dict):
           n.was_visited = False
   
   def disp(self):
+    """ display the full graph system"""
     for cls, graph in self.items():
       print(f"for cls: {cls}")
       graph.disp()
@@ -104,11 +108,29 @@ class DefaultSetter:
     def __call__(self, _func):
       if str(self.setter).lower() in "default":
         _func = _func.setter(self.defaultSetter)
+
+      elif (type(self.setter) is bool): # in older versions <= 1.0.2 True and False were used for setter detection
+        raise Exception(f"use of type bool is deprecated, don't use setter={str(self.setter)}")
+
+      elif (type(self.setter) is type): # as of 1.0.3, we now have type setters for type error checking
+        _func = _func.setter(self.defaultTypeSetter)
+
+      elif (self.setter is None):
+        pass
+      
+      else:
+        raise Exception(f"Illegal input for setter={self.setter}")
       return _func
     
     @staticmethod
     def defaultSetter(obj, var):
       return var
+    
+    def defaultTypeSetter(self, obj, var):
+      if (type(var) is self.setter):
+        return var
+      else:
+        raise TypeError(f"expected {self.setter}, got {type(var)}")
 
 
 def EzProperty(JTProperty_obj):
@@ -116,7 +138,7 @@ def EzProperty(JTProperty_obj):
     def __init__(self, *args, **kwargs):
       return super().__init__(*args, **kwargs)
     
-    def clsGraphSysInit(self, cls, cls_name):
+    def initClsGraphSys(self, cls, cls_name):
       if JTProperty.cls_name2graph_sys.get(cls_name) is None: # quickly creating a graph for an object with child class having no JTProperties :<
         JTProperty.cls_name2graph_sys[cls_name] = ClsGraphSys()
         cls_graph_sys = JTProperty.cls_name2graph_sys[cls_name]
@@ -128,12 +150,14 @@ def EzProperty(JTProperty_obj):
         - resets all downstream graph dependencies
         - sets return value of _func to protected name of _func
       """
+      JTProperty_obj.setter_unavailable = False # tells the getVar method to use the public setter rather than the protected one
+
       def wrapper(obj, val):
         JTProperty_obj.joinClsThreads() # ensures that all class variables become available 
 
         cls = type(obj)
         cls_name = cls.__qualname__
-        self.clsGraphSysInit(cls, cls_name)
+        self.initClsGraphSys(cls, cls_name) # makes sure that a graphsys is available for type(self) before resetting dependencies
 
         JTProperty.cls_name2graph_sys[cls_name].resetDepDFS(cls, obj, JTProperty_obj.protected_name)
 
@@ -164,35 +188,53 @@ class JTProperty:
   # maps the name of the classes to a list of protected variables which were defined in a class
   cls_name2protected_names = {}
 
-  def __init__(self, setter = False, deps = None):
-    # Tri state "setter": True, Default, False
+  def __init__(self, setter = None, deps = None):
+    """
+    parameters:
+      -- setter: None (default) <- means no setter
+                 type (int, str, float etc...) <- uses defaultTypeSetter
+                 "default" <- uses defaultSetter
+                 bool <- deprecated
+      -- deps: a list/ set of strings or space seperated string "dependencies"
+               these dependencies are other JTProperty decorated methods,
+               graphically, this is a list of nodes that point to the current decorated node
+    """
     self.setter = setter
     self.deps = self.preprocessDeps(deps)
-  
+
+    self.setter_unavailable = True # we first assume that the setter method is unavailable, this can be changed by the _func.setter(func) call later
+
   def preprocessDeps(self, deps):
     """
     converts all deps to protected string variables
     """
     if deps is None:
       return None
-    elif not isinstance(deps, (list, set)):
-      deps = [deps]
+    
+    if isinstance(deps, str):
+      deps = set(deps.split(' '))
+
+    """
+    if not isinstance(deps, (list, set)):
+      deps = set(deps)
+    """
+
     #check if all dependencies are a string (or a EzProperty instance <- not implemented)
     assert all(isinstance(dep, (str)) for dep in deps)
-    return [f"_{dep}" for dep in deps]
+    return {f"_{dep}" for dep in deps}
 
   def getVar(self, obj):
     # if self._name is not available atm or it is set to None
     if (self.protected_name not in dir(obj)) or (getattr(obj, self.protected_name) is None):
-      if self.setter == False:
+      if self.setter_unavailable:
         setattr(obj, self.protected_name, self._func(obj)) 
       else:
-        # call setter method obj.name with the return value of the property function, this effectively sets obj._name
+        # call setter method with the return value of the property function, this effectively sets obj._name
         setattr(obj, self.public_name, self._func(obj)) 
     return getattr(obj, self.protected_name)
 
   def addProtectedNames2ClsName(self):
-    """ adding property to a dict containing the name of class in which it belongs too"""
+    """ adding a property to a dict containing the name of class in which it belongs too"""
     if self.cls_name2protected_names.get(self.cls_name, None) is None:
       self.cls_name2protected_names[self.cls_name] = [self.protected_name]
     else:
@@ -220,7 +262,7 @@ class JTProperty:
     #cls = inspect._findclass(_func) <- big annoying problem: can't get cls from _func within this __call__ method, cls is not a global variable yet <- this is also why multithreading was used
 
     self.addProtectedNames2ClsName()
-    self.initDepGraph()
+    self.initDepGraph() # create a node for the decorated function and its edges 
 
     # the getter method here
     @DefaultSetter(self.setter)
@@ -307,6 +349,7 @@ class JTProperty:
 
           
   def joinClsThreads(self):
+    """ in any arbitrary order join all cls threads """
     while len(self.cls_name2active_t) != 0:
       cls_name, active_t = self.cls_name2active_t.popitem()
       active_t.join()
@@ -325,36 +368,38 @@ if __name__ == '__main__':
       assert p.__str__() == a.__str__()
 
 
-class PropDemo:
-  def __init__(self):
-    self._prop1 = None
-    self._prop2 = None
-    self._prop3 = None
+if __name__ == "__main__":
+  class PropDemo:
+    def __init__(self):
+      self._prop1 = None
+      self._prop2 = None
+      self._prop3 = None
+    
+    @property
+    def prop1(self):
+      if self._prop1 is None:
+        self._prop1 = self.get_prop1()
+      return self._prop1
   
-  @property
-  def prop1(self):
-    if self._prop1 is None:
-      self._prop1 = self.get_prop1()
-    return self._prop1
-
-  @property
-  def prop2(self):
-    if self._prop2 is None:
-      self._prop2 = self.get_prop2()
-    return self._prop2
-
-  @property
-  def prop3(self):
-    if self._prop3 is None:
-      self._prop3 = self.get_prop3()
-    return self._prop3
- 
-  def get_prop1(self):
-    return 1
-  def get_prop2(self):
-    return self.prop1 + 1
-  def get_prop3(self):
-    return self.prop2 + 1
+    @property
+    def prop2(self):
+      if self._prop2 is None:
+        self._prop2 = self.get_prop2()
+      return self._prop2
+  
+    @property
+    def prop3(self):
+      if self._prop3 is None:
+        self._prop3 = self.get_prop3()
+      return self._prop3
+  
+    def get_prop1(self):
+      return 1
+    def get_prop2(self):
+      return self.prop1 + 1
+    def get_prop3(self):
+      return self.prop2 + 1
+    
   
 
 
@@ -363,22 +408,23 @@ if __name__ == '__main__':
   print_assert(prop_dem.prop3, '3')
 
 
-class JTPropDemo:
-  def __init__(self):
-    pass
+if __name__ == "__main__":
+  class JTPropDemo:
+    def __init__(self):
+      pass
+    
+    @JTProperty()
+    def prop1(self):
+      return 1
   
-  @JTProperty()
-  def prop1(self):
-    return 1
-
-  @JTProperty()
-  def prop2(self):
-    return self.prop1 + 1
-
-  @JTProperty()
-  def prop3(self):
-    return self.prop2 + 1
+    @JTProperty()
+    def prop2(self):
+      return self.prop1 + 1
   
+    @JTProperty()
+    def prop3(self):
+      return self.prop2 + 1
+    
 
 
 if __name__ == '__main__':
@@ -386,80 +432,84 @@ if __name__ == '__main__':
   print_assert(prop_dem.prop3, '3')
 
 
-class SetAndGet:
-  def __init__(self, r = 1):
-    # initialise the protected variable
-    self._radius = None
-
-    # calls the @radius.setter method
-    self.radius = r
-  @property
-  def radius(self):
-    if self._radius is None:
-      self.radius = 2
-    return self._radius
-  @radius.setter
-  def radius(self, r):
-    if r <= 0:
-      raise ValueError("radius should be greater than 0")
-    self._radius = r
-
-
 if __name__ == '__main__':
-  import contextlib
-  setandget = SetAndGet()
-  print_assert(setandget.radius, '1')
-
-  setandget.radius = 5
-  print_assert(setandget.radius, '5')
-
-  setandget.radius = 3
-  print_assert(setandget.radius, '3')
-
-  with contextlib.suppress(ValueError):
-    setandget.radius = -5
-  print_assert(setandget.radius, '3')
-
-
-class JTSetAndGet:
-  def __init__(self, r = 1):
-    self.radius = r
-  @JTProperty(setter = True)
-  def radius(self):
-    return 2
-
-  @radius.setter
-  def radius(self, r):
-    if r <= 0:
-      raise ValueError("radius should be greater than 0")
-    return r
-
-
-if __name__ == '__main__':
-  import contextlib
-  setandget = SetAndGet()
-  print_assert(setandget.radius, '1')
-
-  setandget.radius = 5
-  print_assert(setandget.radius, '5')
-
-  setandget.radius = 3
-  print_assert(setandget.radius, '3')
-
-  with contextlib.suppress(ValueError):
-    setandget.radius = -5
-  print_assert(setandget.radius, '3')
-
-
-# writing the setter explicitly
-class SetterDemo:
-  @JTProperty(setter=True)
-  def prop(self):
-    return 1
+  class SetAndGet:
+    def __init__(self, r = 1):
+      # initialise the protected variable
+      self._radius = None
   
-  @prop.setter
-  def prop(self, val):
-    return val
+      # calls the @radius.setter method
+      self.radius = r
+    @property
+    def radius(self):
+      if self._radius is None:
+        self.radius = 2
+      return self._radius
+    @radius.setter
+    def radius(self, r):
+      if r <= 0:
+        raise ValueError("radius should be greater than 0")
+      self._radius = r
+
+
+if __name__ == '__main__':
+  import contextlib
+  setandget = SetAndGet()
+  print_assert(setandget.radius, '1')
+
+  setandget.radius = 5
+  print_assert(setandget.radius, '5')
+
+  setandget.radius = 3
+  print_assert(setandget.radius, '3')
+
+  with contextlib.suppress(ValueError):
+    setandget.radius = -5
+  print_assert(setandget.radius, '3')
+
+
+if __name__ == '__main__':
+  class JTSetAndGet:
+    def __init__(self, r = 1):
+      self.radius = r
+    @JTProperty()
+    def radius(self):
+      return 2
+  
+    @radius.setter
+    def radius(self, r):
+      if r <= 0:
+        raise ValueError("radius should be greater than 0")
+      return r
+  
+
+
+if __name__ == '__main__':
+  import contextlib
+  setandget = SetAndGet()
+  print_assert(setandget.radius, '1')
+
+  setandget.radius = 5
+  print_assert(setandget.radius, '5')
+
+  setandget.radius = 3
+  print_assert(setandget.radius, '3')
+
+  with contextlib.suppress(ValueError):
+    setandget.radius = -5
+  print_assert(setandget.radius, '3')
+
+
+if __name__ == '__main__':
+  # writing the setter explicitly
+  class SetterDemo:
+    @JTProperty()
+    def prop(self):
+      return 1
+    
+    @prop.setter
+    def prop(self, val):
+      return val
 
 
 if __name__ == "__main__":
@@ -475,11 +525,13 @@ if __name__ == "__main__":
   print_assert(setter_demo.prop, '1')
 
 
-# writing the setter implicitly
-class AutoSetterDemo:
-  @JTProperty(setter="Default")
-  def prop(self):
-    return 1
+if __name__ == '__main__':
+  # writing the setter implicitly
+  class AutoSetterDemo:
+    @JTProperty(setter="Default")
+    def prop(self):
+      return 1
+  
 
 
 if __name__ == "__main__":
@@ -495,22 +547,78 @@ if __name__ == "__main__":
   print_assert(auto_setter_demo.prop, '1')
 
 
-class GraphDemo:
-  @JTProperty(setter = "Default")
-  def a(self):
-    return 'a'
+if __name__ == '__main__':
+  #writing the setter explicitly
+  class TypeSetterDemo:
+    @JTProperty()
+    def intProperty(self):
+      return 1
+    
+    @intProperty.setter
+    def intProperty(self, var):
+      if (type(var) is int):
+        return var
+      else:
+        raise TypeError(f"expected {int}, got {type(var)}")
 
-  @JTProperty(setter = "Default", deps = 'a')
-  def b(self):
-    return self.a + '->b'
+
+if __name__ == '__main__':
+  # test setter before getter
+  typeSetterDemo = TypeSetterDemo()
+  with contextlib.suppress(TypeError):
+    typeSetterDemo.intProperty = 1.2
+  print(typeSetterDemo.intProperty)
+
+
+if __name__ == '__main__':
+  # test getter before setter
+  typeSetterDemo = TypeSetterDemo()
+  print(typeSetterDemo.intProperty)
+  with contextlib.suppress(TypeError):
+    typeSetterDemo.intProperty = 1.2
+
+
+if __name__ == '__main__':
+  #writing the setter implicitly
+  class AutoTypeSetterDemo:
+    @JTProperty(setter = int)
+    def intProperty(self):
+      return 1
+
+
+if __name__ == '__main__':
+  # test setter before getter
+  typeSetterDemo = AutoTypeSetterDemo()
+  with contextlib.suppress(TypeError):
+    typeSetterDemo.intProperty = 1.2
+  print(typeSetterDemo.intProperty)
+
+
+if __name__ == '__main__':
+  # test getter before setter
+  typeSetterDemo = AutoTypeSetterDemo()
+  print(typeSetterDemo.intProperty)
+  with contextlib.suppress(TypeError):
+    typeSetterDemo.intProperty = 1.2
+
+
+if __name__ == '__main__':
+  class GraphDemo:
+    @JTProperty(setter = "Default")
+    def a(self):
+      return 'a'
   
-  @JTProperty(setter = "Default")
-  def c(self):
-    return 'c'
-
-  @JTProperty(setter = "Default", deps = ['c', 'b'])
-  def d(self):
-    return self.b + '->d' + ' and ' + self.c + '->d'
+    @JTProperty(setter = "Default", deps = 'a')
+    def b(self):
+      return self.a + '->b'
+    
+    @JTProperty(setter = "Default")
+    def c(self):
+      return 'c'
+  
+    @JTProperty(setter = "Default", deps = 'c b') # space seperated names are accepted as of 1.0.3
+    def d(self):
+      return self.b + '->d' + ' and ' + self.c + '->d'
 
 
 if __name__ == '__main__':
@@ -539,22 +647,23 @@ if __name__ == '__main__':
   #_d points to set()
 
 
-class GraphDemo2:
-  @JTProperty(setter = "Default", deps = ['b', 'd'])
-  def a(self):
-    return self.b + '->a and ' + self.d + '->a'
-
-  @JTProperty(setter = "Default", deps = 'a')
-  def b(self):
-    return self.a + '->b'
+if __name__ == '__main__':
+  class GraphDemo2:
+    @JTProperty(setter = "Default", deps = {'b', 'd'}) # sets are accepted as of 1.0.3
+    def a(self):
+      return self.b + '->a and ' + self.d + '->a'
   
-  @JTProperty(setter = "Default", deps = 'b')
-  def c(self):
-    return self.b + '->c'
-
-  @JTProperty(setter = "Default", deps = ['c'])
-  def d(self):
-    return self.c + '->d'
+    @JTProperty(setter = "Default", deps = 'a')
+    def b(self):
+      return self.a + '->b'
+    
+    @JTProperty(setter = "Default", deps = 'b')
+    def c(self):
+      return self.b + '->c'
+  
+    @JTProperty(setter = "Default", deps = ['c'])
+    def d(self):
+      return self.c + '->d'
 
 
 if __name__ == '__main__':
@@ -604,169 +713,13 @@ if __name__ == '__main__':
   #print(graph_demo.c)
 
 
-class ParentGraphDemo:
-  @JTProperty(setter = "Default")
-  def a(self):
-    return 'a'
-
-class ChildGraphDemo(ParentGraphDemo):
-  @JTProperty(setter = "Default", deps = 'a')
-  def b(self):
-    return self.a + '->b'
-  
-  @JTProperty(setter = "Default")
-  def c(self):
-    return 'c'
-
-  @JTProperty(setter = "Default", deps = ['c', 'b'])
-  def d(self):
-    return self.b + '->d' + ' and ' + self.c + '->d'
-
-
 if __name__ == '__main__':
-  graph_demo = ChildGraphDemo()
-  print_assert(graph_demo.d, 'a->b->d and c->d')
-  graph_demo.a = 'A'
-  print_assert(graph_demo.d, 'A->b->d and c->d')
-  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
-  #for cls: ChildGraphDemo
-  #_b points to {'_d'}
-  #_c points to {'_d'}
-  #_d points to set()
-  #for cls: ParentGraphDemo
-  #_a points to {'_b'}
-
-
-if __name__ == '__main__':
-  graph_demo = ChildGraphDemo()
-  graph_demo.d = 'a->b->d and c->d'
-  graph_demo.a = 'A'
-  print_assert(graph_demo._d, 'a->b->d and c->d')
-  print_assert(graph_demo.d, 'a->b->d and c->d')
-  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
-  #for cls: ChildGraphDemo
-  #_b points to {'_d'}
-  #_c points to {'_d'}
-  #_d points to set()
-  #for cls: ParentGraphDemo
-  #_a points to {'_b'}
-
-
-class ParentAGraphDemo:
-  @JTProperty(setter = "Default")
-  def a(self):
-    return 'a'
-
-class ParentBGraphDemo(ParentAGraphDemo):
-  @JTProperty(setter = "Default", deps = 'a')
-  def b(self):
-    return self.a + '->b'
-
-class ParentCGraphDemo(ParentBGraphDemo):
-  @JTProperty(setter = "Default")
-  def c(self):
-    return 'c'
-
-class DGraphDemo(ParentCGraphDemo):
-  @JTProperty(setter = "Default", deps = ['c', 'b'])
-  def d(self):
-    return self.b + '->d' + ' and ' + self.c + '->d'
-
-
-if __name__ == '__main__':
-  graph_demo = DGraphDemo()
-  print_assert(graph_demo.d, 'a->b->d and c->d')
-  graph_demo.a = 'A'
-  print_assert(graph_demo.d, 'A->b->d and c->d')
-  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
-  #for cls: DGraphDemo
-  #_d points to set()
-  #for cls: ParentCGraphDemo
-  #_c points to {'_d'}
-  #for cls: ParentBGraphDemo
-  #_b points to {'_d'}
-  #for cls: ParentAGraphDemo
-  #_a points to {'_b'}
-
-
-if __name__ == '__main__':
-  graph_demo = DGraphDemo()
-  graph_demo.d = 'a->b->d and c->d'
-  graph_demo.a = 'A'
-  print_assert(graph_demo._d, 'a->b->d and c->d')
-  print_assert(graph_demo.d, 'a->b->d and c->d')
-  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
-  #for cls: DGraphDemo
-  #_d points to set()
-  #for cls: ParentCGraphDemo
-  #_c points to {'_d'}
-  #for cls: ParentBGraphDemo
-  #_b points to {'_d'}
-  #for cls: ParentAGraphDemo
-  #_a points to {'_b'}
-
-
-class Branch1ADemo:
-  @JTProperty(setter = "Default")
-  def a(self):
-    return 'a'
-
-class Branch1BDemo(Branch1ADemo):
-  @JTProperty(setter = "Default", deps = 'a')
-  def b(self):
-    return self.a + '->b'
-
-class Branch2CDemo:
-  @JTProperty(setter = "Default")
-  def c(self):
-    return 'c'
-
-class JoinedDDemo(Branch1BDemo, Branch2CDemo):
-  @JTProperty(setter = "Default", deps = ['c', 'b'])
-  def d(self):
-    return self.b + '->d' + ' and ' + self.c + '->d'
-
-
-if __name__ == '__main__':
-  graph_demo = JoinedDDemo()
-  print_assert(graph_demo.d, 'a->b->d and c->d')
-  graph_demo.a = 'A'
-  print_assert(graph_demo.d, 'A->b->d and c->d')
-  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
-  #for cls: JoinedDDemo
-  #_d points to set()
-  #for cls: Branch1BDemo
-  #_b points to {'_d'}
-  #for cls: Branch1ADemo
-  #_a points to {'_b'}
-  #for cls: Branch2CDemo
-  #_c points to {'_d'}}
-
-
-if __name__ == '__main__':
-  graph_demo = JoinedDDemo()
-  graph_demo.d = 'a->b->d and c->d'
-  graph_demo.a = 'A'
-  print_assert(graph_demo._d, 'a->b->d and c->d')
-  print_assert(graph_demo.d, 'a->b->d and c->d')
-  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
-  #for cls: JoinedDDemo
-  #_d points to set()
-  #for cls: Branch1BDemo
-  #_b points to {'_d'}
-  #for cls: Branch1ADemo
-  #_a points to {'_b'}
-  #for cls: Branch2CDemo
-  #_c points to {'_d'}}
-
-
-class OuterClass:
-  class InnerParentClass:
+  class ParentGraphDemo:
     @JTProperty(setter = "Default")
     def a(self):
       return 'a'
-
-  class InnerChildClass(InnerParentClass):
+  
+  class ChildGraphDemo(ParentGraphDemo):
     @JTProperty(setter = "Default", deps = 'a')
     def b(self):
       return self.a + '->b'
@@ -781,6 +734,168 @@ class OuterClass:
 
 
 if __name__ == '__main__':
+  graph_demo = ChildGraphDemo()
+  print_assert(graph_demo.d, 'a->b->d and c->d')
+  graph_demo.a = 'A'
+  print_assert(graph_demo.d, 'A->b->d and c->d')
+  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
+  #for cls: ChildGraphDemo
+  #_b points to {'_d'}
+  #_c points to {'_d'}
+  #_d points to set()
+  #for cls: ParentGraphDemo
+  #_a points to {'_b'}
+
+
+if __name__ == '__main__':
+  graph_demo = ChildGraphDemo()
+  graph_demo.d = 'a->b->d and c->d'
+  graph_demo.a = 'A'
+  print_assert(graph_demo._d, 'a->b->d and c->d')
+  print_assert(graph_demo.d, 'a->b->d and c->d')
+  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
+  #for cls: ChildGraphDemo
+  #_b points to {'_d'}
+  #_c points to {'_d'}
+  #_d points to set()
+  #for cls: ParentGraphDemo
+  #_a points to {'_b'}
+
+
+if __name__ == '__main__':
+  class ParentAGraphDemo:
+    @JTProperty(setter = "Default")
+    def a(self):
+      return 'a'
+  
+  class ParentBGraphDemo(ParentAGraphDemo):
+    @JTProperty(setter = "Default", deps = 'a')
+    def b(self):
+      return self.a + '->b'
+  
+  class ParentCGraphDemo(ParentBGraphDemo):
+    @JTProperty(setter = "Default")
+    def c(self):
+      return 'c'
+  
+  class DGraphDemo(ParentCGraphDemo):
+    @JTProperty(setter = "Default", deps = ['c', 'b'])
+    def d(self):
+      return self.b + '->d' + ' and ' + self.c + '->d'
+
+
+if __name__ == '__main__':
+  graph_demo = DGraphDemo()
+  print_assert(graph_demo.d, 'a->b->d and c->d')
+  graph_demo.a = 'A'
+  print_assert(graph_demo.d, 'A->b->d and c->d')
+  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
+  #for cls: DGraphDemo
+  #_d points to set()
+  #for cls: ParentCGraphDemo
+  #_c points to {'_d'}
+  #for cls: ParentBGraphDemo
+  #_b points to {'_d'}
+  #for cls: ParentAGraphDemo
+  #_a points to {'_b'}
+
+
+if __name__ == '__main__':
+  graph_demo = DGraphDemo()
+  graph_demo.d = 'a->b->d and c->d'
+  graph_demo.a = 'A'
+  print_assert(graph_demo._d, 'a->b->d and c->d')
+  print_assert(graph_demo.d, 'a->b->d and c->d')
+  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
+  #for cls: DGraphDemo
+  #_d points to set()
+  #for cls: ParentCGraphDemo
+  #_c points to {'_d'}
+  #for cls: ParentBGraphDemo
+  #_b points to {'_d'}
+  #for cls: ParentAGraphDemo
+  #_a points to {'_b'}
+
+
+if __name__ == '__main__':
+  class Branch1ADemo:
+    @JTProperty(setter = "Default")
+    def a(self):
+      return 'a'
+  
+  class Branch1BDemo(Branch1ADemo):
+    @JTProperty(setter = "Default", deps = 'a')
+    def b(self):
+      return self.a + '->b'
+  
+  class Branch2CDemo:
+    @JTProperty(setter = "Default")
+    def c(self):
+      return 'c'
+  
+  class JoinedDDemo(Branch1BDemo, Branch2CDemo):
+    @JTProperty(setter = "Default", deps = ['c', 'b'])
+    def d(self):
+      return self.b + '->d' + ' and ' + self.c + '->d'
+
+
+if __name__ == '__main__':
+  graph_demo = JoinedDDemo()
+  print_assert(graph_demo.d, 'a->b->d and c->d')
+  graph_demo.a = 'A'
+  print_assert(graph_demo.d, 'A->b->d and c->d')
+  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
+  #for cls: JoinedDDemo
+  #_d points to set()
+  #for cls: Branch1BDemo
+  #_b points to {'_d'}
+  #for cls: Branch1ADemo
+  #_a points to {'_b'}
+  #for cls: Branch2CDemo
+  #_c points to {'_d'}}
+
+
+if __name__ == '__main__':
+  graph_demo = JoinedDDemo()
+  graph_demo.d = 'a->b->d and c->d'
+  graph_demo.a = 'A'
+  print_assert(graph_demo._d, 'a->b->d and c->d')
+  print_assert(graph_demo.d, 'a->b->d and c->d')
+  JTProperty.cls_name2graph_sys[type(graph_demo).__qualname__].disp()
+  #for cls: JoinedDDemo
+  #_d points to set()
+  #for cls: Branch1BDemo
+  #_b points to {'_d'}
+  #for cls: Branch1ADemo
+  #_a points to {'_b'}
+  #for cls: Branch2CDemo
+  #_c points to {'_d'}}
+
+
+if __name__ == '__main__':
+  class OuterClass:
+    class InnerParentClass:
+      @JTProperty(setter = "Default")
+      def a(self):
+        return 'a'
+  
+    class InnerChildClass(InnerParentClass):
+      @JTProperty(setter = "Default", deps = 'a')
+      def b(self):
+        return self.a + '->b'
+      
+      @JTProperty(setter = "Default")
+      def c(self):
+        return 'c'
+    
+      @JTProperty(setter = "Default", deps = ['c', 'b'])
+      def d(self):
+        return self.b + '->d' + ' and ' + self.c + '->d'
+  
+  
+
+
+if __name__ == '__main__':
   graph_demo = OuterClass.InnerChildClass()
   print_assert(graph_demo.d, 'a->b->d and c->d')
   graph_demo.a = 'A'
@@ -809,27 +924,30 @@ if __name__ == '__main__':
   #_a points to {'_b'}
 
 
-class ParentWithJT:
-  @JTProperty(setter = "Default")
-  def a(self):
-    return 'a'
-
-  @JTProperty(setter = "Default", deps = 'a')
-  def b(self):
-    return self.a + '->b'
-
-class ParentNoJT(ParentWithJT):
-  def randomMethodHere(self):
-    pass
-
-class ChildWithJT(ParentNoJT):
-  @JTProperty(setter = "Default")
-  def c(self):
-    return 'c'
-
-  @JTProperty(setter = "Default", deps = ['c', 'b'])
-  def d(self):
-    return self.b + '->d' + ' and ' + self.c + '->d'
+if __name__ == '__main__':
+  class ParentWithJT:
+    @JTProperty(setter = "Default")
+    def a(self):
+      return 'a'
+  
+    @JTProperty(setter = "Default", deps = 'a')
+    def b(self):
+      return self.a + '->b'
+  
+  class ParentNoJT(ParentWithJT):
+    def randomMethodHere(self):
+      pass
+  
+  class ChildWithJT(ParentNoJT):
+    @JTProperty(setter = "Default")
+    def c(self):
+      return 'c'
+  
+    @JTProperty(setter = "Default", deps = ['c', 'b'])
+    def d(self):
+      return self.b + '->d' + ' and ' + self.c + '->d'
+  
+  
 
 
 if __name__ == '__main__':
@@ -861,31 +979,33 @@ if __name__ == '__main__':
   #_b points to {'_d'}
 
 
-class ParentWithJT1:
-  @JTProperty(setter = "Default")
-  def a(self):
-    return 'a'
-
-  @JTProperty(setter = "Default", deps = 'a')
-  def b(self):
-    return self.a + '->b'
-
-class ParentWithJT2(ParentWithJT1):
-  @JTProperty(setter = "Default")
-  def c(self):
-    return 'c'
-
-  @JTProperty(setter = "Default", deps = ['c', 'b'])
-  def d(self):
-    return self.b + '->d' + ' and ' + self.c + '->d'
-
-class ChildNoJT(ParentWithJT2):
-  def randomMethodHere(self):
-    pass
-
-class ChildNoJT2(ChildNoJT):
-  def randomeMethodHere2(self):
-    pass
+if __name__ == '__main__':
+  class ParentWithJT1:
+    @JTProperty(setter = "Default")
+    def a(self):
+      return 'a'
+  
+    @JTProperty(setter = "Default", deps = 'a')
+    def b(self):
+      return self.a + '->b'
+  
+  class ParentWithJT2(ParentWithJT1):
+    @JTProperty(setter = "Default")
+    def c(self):
+      return 'c'
+  
+    @JTProperty(setter = "Default", deps = ['c', 'b'])
+    def d(self):
+      return self.b + '->d' + ' and ' + self.c + '->d'
+  
+  class ChildNoJT(ParentWithJT2):
+    def randomMethodHere(self):
+      pass
+  
+  class ChildNoJT2(ChildNoJT):
+    def randomeMethodHere2(self):
+      pass
+  
 
 
 if __name__ == '__main__':

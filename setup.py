@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name="ez-life",
-    version="1.0.2",
+    version="1.0.3",
     description="A Python Package to make life ez for pythonistas",
     long_description=readme(),
     long_description_content_type="text/markdown",

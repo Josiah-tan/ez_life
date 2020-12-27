@@ -16,8 +16,7 @@ class Param2attr:
     if exclude is None:
       self.exclude = []
 
-    # exclude = "some_string"
-    elif isinstance(exclude, str) == 1:
+    elif isinstance(exclude, str):
       self.exclude = [exclude]
 
     else:
