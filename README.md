@@ -13,18 +13,18 @@ pip install -U ez_life
 ```python
 from ez_life import Param2attr
 
-class Foo:
-	def __init__(self, param1 = None, param2 = None, param3 = None):
-		# This sux
-			self.param1 = param1
-			self.param2 = param2
-			self.param3 = param3
+class Foo: 
+	def __init__(self, param1 = None, param2 = None, param3 = None): 
+		# This sux 
+		self.param1 = param1 
+		self.param2 = param2 
+		self.param3 = param3
 ```
 
 - We can instead create a class that looks like this, using a property decorator to perform the param to attribute assignments 
 
 ```python
-class Foo:
+class Foo: 
 	@Param2attr(exclude=None) 
 	def __init__(self, param1 = None, param2 = None, param3 = None): 
 		# this good, allows u to write other code here during initialization 
@@ -50,13 +50,13 @@ class Foo:
 	- First we will code the length:
 
 ```python
-class Square:
-	def getLength(self):
+class Square: 
+	def getLength(self): 
 		return self._length # the underscore "_" in "_length" means that it is a "protected variable"
 	
-	def setLength(self, r):
-    if r <= 0:
-      raise ValueError("length should be greater than 0")
+	def setLength(self, r): 
+		if r <= 0: 
+			raise ValueError("length should be greater than 0") 
 		self._length = r
 ```
 - We can use this class as follows:
@@ -73,14 +73,14 @@ square.setLength(-1) # raises a ValueError "length should be greater than 0"
 
 ```python
 class Square:
-	@property
+	@property 
 	def length(self): # the setter method
-		return self._length
+		return self._length 
 	
-	@length.setter
-	def length(self, r): # the getter method
-    if r <= 0:
-      raise ValueError("length should be greater than 0")
+	@length.setter 
+	def length(self, r): # the getter method 
+		if r <= 0: 
+			raise ValueError("length should be greater than 0") 
 		self._length = r
 ```
 - The code below shows how to use the setter and getter methods for this class:
@@ -104,17 +104,17 @@ print(square.length) # raises an error
 	- A solution to this could be achieved as follows:
 
 ```python 
-class Square:
-	@property
-	def length(self):
-		if "_length" not in dir(self): # checks if self._length is an attribute yet
-			self.length = 1 # if not, call the setter method to set self._length to 1
-		return self._length
-	
-	@length.setter
-	def length(self, r):
-    if r <= 0:
-      raise ValueError("length should be greater than 0")
+class Square: 
+	@property 
+	def length(self): 
+		if "_length" not in dir(self): # checks if self._length is an attribute yet 
+			self.length = 1 # if not, call the setter method to set self._length to 1 
+		return self._length 
+
+	@length.setter 
+	def length(self, r): 
+		if r <= 0: 
+			raise ValueError("length should be greater than 0") 
 		self._length = r
 ```
 
@@ -140,16 +140,16 @@ print(square.length) # 1
 # importing the JTProperty decorator from the ez_life module
 from ez_life import JTProperty 
 
-class Square:
-  @JTProperty()
-  def length(self):
-    return 1
-
-  @length.setter
-  def length(self, r):
-    if r <= 0:
-      raise ValueError("length should be greater than 0")
-    return r
+class Square: 
+	@JTProperty() 
+	def length(self): 
+		return 1 
+	
+	@length.setter 
+	def length(self, r): 
+		if r <= 0: 
+			raise ValueError("length should be greater than 0") 
+		return r
 ```
 - For JTProperty we can call the setter before the getter method
 
@@ -175,22 +175,22 @@ print(square.length) # 1
 
 ```python
 class Square: 
-	@JTProperty()
-  def length(self):
-    return 1
+	@JTProperty() 
+	def length(self): 
+		return 1 
 
-  @length.setter
-  def length(self, r):
-    if r <= 0:
-      raise ValueError("length should be greater than 0")
-    return r
+	@length.setter 
+	def length(self, r): 
+		if r <= 0: 
+			raise ValueError("length should be greater than 0") 
+		return r 
 
-	@JTProperty()
-	def area(self):
-		return self.length ** 2
+	@JTProperty() 
+	def area(self): 
+		return self.length ** 2 
 	
-	@JTProperty()
-	def perimeter(self):
+	@JTProperty() 
+	def perimeter(self): 
 		return self.length * 4
 ```
 
@@ -215,23 +215,22 @@ print(square.perimeter) # 4 <= note that square.perimeter stays the same
 	- To update square.area and square.perimeter when square.length is changed, a "dependency" list must be given to JTProperty for both square.area and square.perimeter methods:
 
 ```python
-class Square:
-  @JTProperty()
-  def length(self):
-    return 1
-
-  @length.setter
-  def length(self, r):
-    if r <= 0:
-      raise ValueError("length should be greater than 0")
-    return r
-
-	@JTProperty(deps = 'length')
-	def area(self):
-		return self.length ** 2
+class Square: 
+@JTProperty() 
+	def length(self): 
+		return 1 
 	
-	@JTProperty(deps = 'length')
-	def perimeter(self):
+	@length.setter 
+	def length(self, r): 
+		if r <= 0: 
+			raise ValueError("length should be greater than 0") 
+		return r 
+	@JTProperty(deps = 'length') 
+	def area(self): 
+		return self.length ** 2 
+
+	@JTProperty(deps = 'length') 
+	def perimeter(self): 
 		return self.length * 4
 ```
 
