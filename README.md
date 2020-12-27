@@ -240,7 +240,7 @@ print(square.perimeter) # (1 * 4) => 4
 
 square.length = 2 # set length to 2
 
-print(square.area) # (2 ** 2) => 3
+print(square.area) # (2 ** 2) => 4
 print(square.perimeter) # (2 * 4) => 8
 ```
 
