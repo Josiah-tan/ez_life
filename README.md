@@ -216,7 +216,7 @@ print(square.perimeter) # 4 <= note that square.perimeter stays the same
 
 ```python
 class Square: 
-@JTProperty() 
+	@JTProperty() 
 	def length(self): 
 		return 1 
 	
@@ -225,6 +225,7 @@ class Square:
 		if r <= 0: 
 			raise ValueError("length should be greater than 0") 
 		return r 
+
 	@JTProperty(deps = 'length') 
 	def area(self): 
 		return self.length ** 2 
