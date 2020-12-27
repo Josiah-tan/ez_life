@@ -195,20 +195,20 @@ class Square:
 - We can call these methods as follows:
 
 ```python
-circle = Circle()
-print(self.area) # (1 ** 2) => 1
-print(self.perimeter) # (1 * 4) => 4
+square = Square()
+print(square.area) # (1 ** 2) => 1
+print(square.perimeter) # (1 * 4) => 4
 
-self.length = 2 # set length to 2
+square.length = 2 # set length to 2
 
-print(self.area) # 1 <= note that self.area stays the same even though self.length changed
-print(self.perimeter) # 4 <= note that self.perimeter stays the same
+print(square.area) # 1 <= note that square.area stays the same even though square.length changed
+print(square.perimeter) # 4 <= note that square.perimeter stays the same
 
-# self.area = 10 # (note that this gives an error because no setter method is defined for area)
+# square.area = 10 # (note that this gives an error because no setter method is defined for area)
 ```
 
-- Notice that self.area and self.perimeter do not update when self.length is changed to 2
-	- To update self.area and self.perimeter when self.length is changed, a "dependency" list must be given to JTProperty for both self.area and self.perimeter methods:
+- Notice that square.area and square.perimeter do not update when square.length is changed to 2
+	- To update square.area and square.perimeter when square.length is changed, a "dependency" list must be given to JTProperty for both square.area and square.perimeter methods:
 
 ```python
 class Square:
@@ -231,17 +231,17 @@ class Square:
 		return self.length * 4
 ```
 
-- Now when changing self.length to some other value, both self.area and self.perimeter return their corresponding updated values when called
+- Now when changing square.length to some other value, both square.area and square.perimeter return their corresponding updated values when called
 
 ```python
-circle = Circle()
-print(self.area) # (1 ** 2) => 1
-print(self.perimeter) # (1 * 4) => 4
+square = Square()
+print(square.area) # (1 ** 2) => 1
+print(square.perimeter) # (1 * 4) => 4
 
-self.length = 2 # set length to 2
+square.length = 2 # set length to 2
 
-print(self.area) # (2 ** 2) => 3
-print(self.perimeter) # (2 * 4) => 8
+print(square.area) # (2 ** 2) => 3
+print(square.perimeter) # (2 * 4) => 8
 ```
 
 - This concludes the introduction to some of the features that JTProperty supports!
@@ -249,7 +249,7 @@ print(self.perimeter) # (2 * 4) => 8
 	- Support for hierarchal classes
 	- default and default type setters
 	- Circular dependency graphs
-- If you are interested to learn about these other features and more, read the [JTProperty documentation](https://colab.research.google.com/drive/1yt7lT1H9xhXY7OVo7DGaW-APm-qHWOpR?usp=sharing)!
+- If you are interested to learn about these other features and more, feel free to read the [JTProperty documentation](https://colab.research.google.com/drive/1yt7lT1H9xhXY7OVo7DGaW-APm-qHWOpR?usp=sharing)!
 
 # ez-life directory layout:
 
