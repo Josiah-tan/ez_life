@@ -127,6 +127,8 @@ square = Square()
 print(square.length) # 1
 ```
 
+## Understanding The @JTProperty:
+
 ### JTProperty Setter and Getter Methods
 
 - Obviously, the code with the @property decorator is Pythonic, however it is far from perfect
@@ -172,8 +174,8 @@ print(square.length) # 1
 - Now that we have an understanding of JTProperty, we can fully implement the square class perimeter and area setter methods!
 
 ```python
-class Square:
-  @JTProperty()
+class Square: 
+	@JTProperty()
   def length(self):
     return 1
 
@@ -206,6 +208,8 @@ print(square.perimeter) # 4 <= note that square.perimeter stays the same
 
 # square.area = 10 # (note that this gives an error because no setter method is defined for area)
 ```
+
+### Full Implementation of Square with JTProperty part 2 (with dependencies)
 
 - Notice that square.area and square.perimeter do not update when square.length is changed to 2
 	- To update square.area and square.perimeter when square.length is changed, a "dependency" list must be given to JTProperty for both square.area and square.perimeter methods:
