@@ -5,6 +5,7 @@ import copy
 import functools
 import sys
 import threading
+from queue import Queue
 
 
 class Node:
@@ -50,9 +51,9 @@ class Graph:
 
 
 class ClsGraphSys(dict):
-  def resetDepDFS(self, cls, obj, protected_name):
+  def resetDep(self, cls, obj, protected_name):
     """
-    Runs a DFS alrgorithm on the graph datastructure to reset all downstream dependencies to None
+    Runs a BFS alrgorithm on the graph datastructure to reset all downstream dependencies to None
     parameters
       -- cls = type(obj)
       -- obj: the class object that we are dealing with
@@ -62,16 +63,17 @@ class ClsGraphSys(dict):
     """ find node of protected_name by traversing through the MRO class heirarchy"""
     node = None
     for parent in cls.__mro__[:-1]: # exclude object class
-      parent_graph = self.get(parent.__qualname__, None) # get the parent graph (None to make sure that )
+      parent_graph = self.get(parent.__qualname__, None) # get the parent graph (if None to continue iterating)
       if parent_graph is not None: 
         node = parent_graph.data2node.get(protected_name, None) # get the node within the parent graph
         if node is not None:
             break
 
-    if node is None: # Honestly, I forgot what this was for
+    if node is None: #this here executes if protected_name is part of the class but is not a node
       return
 
-    """ perform a recursive reset """
+    """ perform a recursive reset (deprecated) """
+    # problem with this is that stack increases
     def recursiveReset(node):
       if node.was_visited or not isinstance(node, Node):
         return
@@ -80,14 +82,32 @@ class ClsGraphSys(dict):
         setattr(obj, node.data, None)
         [recursiveReset(n) for n in node._edges]
   
-    recursiveReset(node)
 
-    """ reseting all nodes visited to False for next iteration"""
-    for parent in cls.__mro__[:-1]:
-      parent_graph = self.get(parent.__qualname__, None)
-      if parent_graph is not None:
-        for n in parent_graph.data2node.values():
-          n.was_visited = False
+      """ reseting all nodes visited to False for next iteration (deprecated) """
+      # problem with this is that it goes through every single node in all parent classes
+      for parent in cls.__mro__[:-1]:
+        parent_graph = self.get(parent.__qualname__, None)
+        if parent_graph is not None:
+          for n in parent_graph.data2node.values():
+            n.was_visited = False
+
+    #recursiveReset(node)
+    
+    def BFSReset(node):
+      """ perform a breadth first reset"""
+      q = Queue()
+      visited = set()
+      q.put(node)
+      while (not(q.empty())):
+        node = q.get()
+        if (node not in visited and isinstance(node, Node)):
+          visited.add(node)
+          if (node.data in dir(obj)) and getattr(obj, node.data) is not None: # make sure that node.data is defined and is not None
+            setattr(obj, node.data, None)
+            for n in node._edges:
+              q.put(n)
+
+    BFSReset(node)
   
   def disp(self):
     """ display the full graph system"""
@@ -100,6 +120,17 @@ if __name__ == "__main__":
   cls_dict = ClsGraphSys()
   cls_dict['1'] = 4
   print(type(cls_dict))
+
+
+if __name__ == "__main__":
+  q = Queue()
+  print(q.empty())
+  q.put(1)
+  print(q.empty())
+  a = set()
+  print(dir(a))
+  a.add(1)
+  print(a)
 
 
 class DefaultSetter:
@@ -127,6 +158,7 @@ class DefaultSetter:
       return var
     
     def defaultTypeSetter(self, obj, var):
+      # Note that we need self here because of
       if (type(var) is self.setter):
         return var
       else:
@@ -159,7 +191,7 @@ def EzProperty(JTProperty_obj):
         cls_name = cls.__qualname__
         self.initClsGraphSys(cls, cls_name) # makes sure that a graphsys is available for type(self) before resetting dependencies
 
-        JTProperty.cls_name2graph_sys[cls_name].resetDepDFS(cls, obj, JTProperty_obj.protected_name)
+        JTProperty.cls_name2graph_sys[cls_name].resetDep(cls, obj, JTProperty_obj.protected_name)
 
         setattr(obj, JTProperty_obj.protected_name, _func(obj, val))
       return wrapper
@@ -366,6 +398,40 @@ if __name__ == '__main__':
     print(p)
     if a is not None:
       assert p.__str__() == a.__str__()
+
+
+"""
+if __name__ == '__main__':
+  class ClassAttrDemo:
+    @JTProperty(setter="default")
+    def a(self):
+      return 'a'
+
+    @JTProperty(setter="default", deps="a")
+    def b(self):
+      return self.a + '->b'
+
+  class ClassAttrContainerDemo:
+    def __init__(self):
+      self.class_attr_demo = ClassAttrDemo()
+      
+    @JTProperty(setter = "Default")
+    def c(self):
+      return 'c'
+  
+    @JTProperty(setter = "Default", deps = ['c', 'class_attr_demo.b'])
+    def d(self):
+      return self.class_attr_demo.b + '->d' + ' and ' + self.c + '->d'
+"""
+
+
+"""
+if __name__ == '__main__':
+  class_attr_container_demo = ClassAttrContainerDemo()
+  print_assert(class_attr_container_demo.d, "a->b->d and c->d")
+  class_attr_container_demo.class_attr_demo.a = 'A'
+  print_assert(class_attr_container_demo.d, "A->b->d and c->d")
+"""
 
 
 if __name__ == "__main__":
