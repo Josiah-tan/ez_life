@@ -135,22 +135,41 @@ if __name__ == "__main__":
 
 class DefaultSetter:
     def __init__(self, setter):
-      self.setter = setter
+      self.setter = self.preprocessSetter(setter)
+    
+    def preprocessSetter(self, setter):
+      """preprocesses setter arguments"""
+      if type(setter) is str:
+        setter = {setter.lower()}
+      elif hasattr(setter, '__iter__'):
+        [self.preprocessSetter(s) for s in setter]  # call the function recursively on each element of the setter
+        setter = set(setter) # make sure that the iterable is a set to ensure that checking occurs in O(1) time
+      else:
+        self.errorCheckSetter(setter)
+        setter = {setter}
+
+
+      return setter
+
+    def errorCheckSetter(self, setter):
+      """ performs error checking on a non iterable """
+      if (type(setter) is bool): # in older versions <= 1.0.2 True and False were used for setter detection
+        raise Exception(f"use of type bool is deprecated, don't use setter={str(setter)}")
+      elif setter is None or type(setter) is type or type(setter) is str: # don't do anything here if valid
+        pass
+      else:
+        raise Exception(f"Illegal input for setter={setter}")
+
     def __call__(self, _func):
-      if str(self.setter).lower() in "default":
+      if "default" in self.setter:
         _func = _func.setter(self.defaultSetter)
+      
+      elif None in self.setter:
+        pass
 
-      elif (type(self.setter) is bool): # in older versions <= 1.0.2 True and False were used for setter detection
-        raise Exception(f"use of type bool is deprecated, don't use setter={str(self.setter)}")
-
-      elif (type(self.setter) is type): # as of 1.0.3, we now have type setters for type error checking
+      else:
         _func = _func.setter(self.defaultTypeSetter)
 
-      elif (self.setter is None):
-        pass
-      
-      else:
-        raise Exception(f"Illegal input for setter={self.setter}")
       return _func
     
     @staticmethod
@@ -158,8 +177,8 @@ class DefaultSetter:
       return var
     
     def defaultTypeSetter(self, obj, var):
-      # Note that we need self here because of
-      if (type(var) is self.setter):
+      # Note that we need self here because of self.setter
+      if (type(var) in self.setter): # O(1) lookup since self.setter is a set
         return var
       else:
         raise TypeError(f"expected {self.setter}, got {type(var)}")
@@ -666,6 +685,28 @@ if __name__ == '__main__':
   print(typeSetterDemo.intProperty)
   with contextlib.suppress(TypeError):
     typeSetterDemo.intProperty = 1.2
+
+
+if __name__ == '__main__':
+  #writing the setter implicitly
+  class AutoTypesSetterDemo:
+    @JTProperty(setter = [int, float])
+    def intProperty(self):
+      return 1
+
+
+if __name__ == '__main__':
+  # test setter before getter
+  typesSetterDemo = AutoTypesSetterDemo()
+  typesSetterDemo.intProperty = 1.2
+  print(typesSetterDemo.intProperty)
+
+
+if __name__ == '__main__':
+  # test getter before setter
+  typesSetterDemo = AutoTypesSetterDemo()
+  print(typesSetterDemo.intProperty)
+  typesSetterDemo.intProperty = 1.2
 
 
 if __name__ == '__main__':
